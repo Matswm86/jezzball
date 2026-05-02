@@ -12,16 +12,18 @@ const HUD_H := 160.0
 const CTRL_Y := FIELD_Y + FIELD_H
 const CTRL_H := 80.0
 
-const COL_BG := Color("000000")
-const COL_BORDER := Color("00aaaa")
-const COL_WALL := Color("00aaaa")
-const COL_BUILDING := Color("00ffff")
-const COL_CAPTURED := Color("000080")
-const COL_BALL := Color("ff5555")
-const COL_BALL_OUTLINE := Color("aa0000")
-const COL_TEXT := Color("ffffff")
-const COL_BTN := Color("002040")
-const COL_BTN_BORDER := Color("00aaaa")
+const COL_BG := Color8(0, 0, 0)
+const COL_BORDER := Color8(0, 170, 170)
+const COL_WALL := Color8(0, 170, 170)
+const COL_BUILDING := Color8(0, 255, 255)
+const COL_CAPTURED := Color8(0, 0, 128)
+const COL_BALL := Color8(255, 85, 85)
+const COL_BALL_OUTLINE := Color8(170, 0, 0)
+const COL_TEXT := Color8(255, 255, 255)
+const COL_BTN := Color8(0, 32, 64)
+const COL_BTN_BORDER := Color8(0, 170, 170)
+const COL_HIGHLIGHT := Color8(255, 170, 170)
+const COL_BAR_BG := Color8(0, 32, 32)
 
 const BALL_RADIUS := 13.0
 const BALL_SPEED := 240.0
@@ -318,7 +320,7 @@ func _draw_hud() -> void:
 	var bar_w := FIELD_W - 40
 	var bar_x := 20.0
 	var bar_y := 130.0
-	draw_rect(Rect2(bar_x, bar_y, bar_w, 16), Color("002020"), true)
+	draw_rect(Rect2(bar_x, bar_y, bar_w, 16), COL_BAR_BG, true)
 	var fill := bar_w * float(captured) / float(play_total)
 	draw_rect(Rect2(bar_x, bar_y, fill, 16), COL_BORDER, true)
 	var target_x := bar_x + bar_w * TARGET
@@ -341,7 +343,7 @@ func _draw_field() -> void:
 		var p: Vector2 = b["pos"]
 		draw_circle(p, BALL_RADIUS + 1, COL_BALL_OUTLINE)
 		draw_circle(p, BALL_RADIUS - 1, COL_BALL)
-		draw_circle(p + Vector2(-4, -4), 3, Color("ffaaaa"))
+		draw_circle(p + Vector2(-4, -4), 3, COL_HIGHLIGHT)
 
 func _draw_controls() -> void:
 	draw_rect(Rect2(0, CTRL_Y, FIELD_W, CTRL_H), COL_BG, true)
