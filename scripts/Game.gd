@@ -35,9 +35,9 @@ const COL_BAR_BG := Color(0.18, 0.18, 0.18)
 const COL_PREVIEW := Color(0.95, 0.95, 0.95, 0.5) # touch-preview line on field
 
 const BALL_RADIUS := 22.0
-const BALL_SPEED := 420.0
-const WALL_SPEED := 6.5
-const TARGET := 0.75
+const BALL_SPEED := 380.0
+const WALL_SPEED := 9.0
+const TARGET := 0.55
 const MAX_LEVEL := 50
 
 enum CellState { EMPTY, BORDER, WALL, BUILDING, CAPTURED }
@@ -179,7 +179,7 @@ func _refresh_ui() -> void:
 	lbl_lives.text = "LIVES %d" % lives
 	var pct := 0
 	if play_total > 0:
-		pct = int(round(float(captured) / float(play_total) * 100.0))
+		pct = int(round(float(_filled_count()) / float(play_total) * 100.0))
 	lbl_pct.text = "%d %% / %d %%" % [pct, int(TARGET * 100)]
 	var show_overlay := false
 	var t_text := ""
@@ -352,8 +352,18 @@ func _destroy_wall(w: Dictionary) -> void:
 			grid[c.x][c.y] = CellState.EMPTY
 	walls.erase(w)
 
+func _filled_count() -> int:
+	# Cells that count as "yours": completed walls + captured regions.
+	var n := 0
+	for x in range(1, COLS - 1):
+		for y in range(1, ROWS - 1):
+			var s = grid[x][y]
+			if s == CellState.CAPTURED or s == CellState.WALL:
+				n += 1
+	return n
+
 func _check_win() -> void:
-	if float(captured) / float(play_total) >= TARGET:
+	if float(_filled_count()) / float(play_total) >= TARGET:
 		state = GameState.LEVEL_WIN
 
 func _input(event: InputEvent) -> void:
@@ -440,7 +450,7 @@ func _draw_hud_chrome() -> void:
 	draw_rect(Rect2(bar_x, bar_y, bar_w, 22), COL_BAR_BG, true)
 	var fill := 0.0
 	if play_total > 0:
-		fill = bar_w * float(captured) / float(play_total)
+		fill = bar_w * float(_filled_count()) / float(play_total)
 	draw_rect(Rect2(bar_x, bar_y, fill, 22), COL_CAPTURED, true)
 	var target_x := bar_x + bar_w * TARGET
 	draw_line(Vector2(target_x, bar_y - 6), Vector2(target_x, bar_y + 28), COL_TEXT, 3)
