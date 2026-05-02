@@ -1,35 +1,39 @@
 extends Node2D
 
+# JezzBall — mobile remake. Layout v2: controls at TOP (always reachable on
+# any phone), saturated Win3-era palette, faster atoms, simplified atom sprite.
+
 const COLS := 36
-const ROWS := 56
+const ROWS := 50
 const CELL := 30.0
+
 const FIELD_X := 0.0
-const FIELD_Y := 160.0
-const FIELD_W := COLS * CELL
-const FIELD_H := ROWS * CELL
-
 const HUD_H := 160.0
-const CTRL_Y := FIELD_Y + FIELD_H
-const CTRL_H := 80.0
+const CTRL_H := 130.0
+const FIELD_Y := HUD_H + CTRL_H        # 290
+const FIELD_W := COLS * CELL           # 1080
+const FIELD_H := ROWS * CELL           # 1500
 
-const COL_BG := Color(0.827, 0.827, 0.827)         # #D3D3D3 lightGray (Win3 face)
-const COL_FIELD := Color(0.827, 0.827, 0.827)      # field interior matches bg
-const COL_BORDER := Color(0.663, 0.663, 0.663)     # #A9A9A9 darkGray border
-const COL_WALL := Color(0.722, 0.396, 0.400)       # #B86566 fadedRed completed wall
-const COL_BUILDING := Color(0.467, 0.184, 0.196)   # darker red while growing
-const COL_CAPTURED := Color(0.506, 0.529, 0.871)   # #8187DE fadedBlue capture fill
-const COL_BALL := Color(0.722, 0.396, 0.400)       # red base
-const COL_BALL_PATTERN := Color(1.0, 1.0, 1.0)     # white checker spot
-const COL_BALL_OUTLINE := Color(0.4, 0.18, 0.18)   # dark-red outline
-const COL_TEXT := Color(0.0, 0.0, 0.0)             # black ink on light gray
-const COL_BTN := Color(0.95, 0.95, 0.95)
-const COL_BTN_BORDER := Color(0.4, 0.4, 0.4)
-const COL_BAR_BG := Color(0.7, 0.7, 0.7)
-const COL_BAR_FILL := Color(0.506, 0.529, 0.871)   # progress bar uses fadedBlue too
+# Saturated palette closer to the actual Windows 3.x JezzBall look.
+const COL_BG := Color(0.75, 0.75, 0.75)        # Win3 face gray (#BFBFBF)
+const COL_FIELD := Color(0.83, 0.83, 0.83)     # field interior, slightly lighter
+const COL_BORDER := Color(0.20, 0.20, 0.20)    # near-black field border
+const COL_WALL := Color(0.80, 0.12, 0.12)      # saturated RED for completed walls
+const COL_BUILDING := Color(1.00, 0.30, 0.30)  # bright red for the growing tip
+const COL_CAPTURED := Color(0.13, 0.18, 0.78)  # saturated BLUE capture fill
+const COL_CAP_HATCH := Color(0.20, 0.30, 0.95) # lighter blue for hatch lines
+const COL_BALL := Color(0.86, 0.13, 0.13)      # red atom
+const COL_BALL_DOT := Color(1.0, 1.0, 1.0)     # single white highlight
+const COL_BALL_OUTLINE := Color(0.10, 0.0, 0.0)
+const COL_TEXT := Color(0.0, 0.0, 0.0)
+const COL_BTN := Color(0.92, 0.92, 0.92)
+const COL_BTN_PRESSED := Color(0.74, 0.74, 0.74)
+const COL_BTN_BORDER := Color(0.25, 0.25, 0.25)
+const COL_BAR_BG := Color(0.55, 0.55, 0.55)
 
-const BALL_RADIUS := 13.0
-const BALL_SPEED := 240.0
-const WALL_SPEED := 6.5
+const BALL_RADIUS := 14.0
+const BALL_SPEED := 320.0
+const WALL_SPEED := 8.0
 const TARGET := 0.75
 const MAX_LEVEL := 50
 
@@ -47,6 +51,8 @@ var captured := 0
 var play_total := 0
 var state: int = GameState.PLAYING
 var intro_timer := 0.0
+var btn_toggle_flash := 0.0
+var btn_restart_flash := 0.0
 
 var lbl_level: Label
 var lbl_lives: Label
@@ -57,40 +63,53 @@ var lbl_overlay_title: Label
 var lbl_overlay_sub: Label
 var overlay_box: ColorRect
 
+# Control button rects, computed once in _ready.
+var rect_toggle: Rect2
+var rect_restart: Rect2
+
 func _ready() -> void:
 	randomize()
+	# Toggle takes 66%, Restart takes 33% of the control row.
+	var pad := 12.0
+	var ctrl_top := HUD_H + 8
+	var ctrl_h := CTRL_H - 16
+	var toggle_w := (FIELD_W - 3 * pad) * 0.66
+	var restart_w := (FIELD_W - 3 * pad) - toggle_w
+	rect_toggle = Rect2(pad, ctrl_top, toggle_w, ctrl_h)
+	rect_restart = Rect2(pad + toggle_w + pad, ctrl_top, restart_w, ctrl_h)
 	_build_ui()
 	_start_level(1)
 
-func _make_label(pos: Vector2, w: float, fs: int, halign: int = HORIZONTAL_ALIGNMENT_LEFT) -> Label:
+func _make_label(pos: Vector2, w: float, fs: int, halign: int = HORIZONTAL_ALIGNMENT_LEFT, fc: Color = COL_TEXT) -> Label:
 	var l := Label.new()
 	l.position = pos
 	l.size = Vector2(w, fs * 1.6)
 	l.add_theme_font_size_override("font_size", fs)
-	l.add_theme_color_override("font_color", COL_TEXT)
+	l.add_theme_color_override("font_color", fc)
 	l.horizontal_alignment = halign
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	add_child(l)
 	return l
 
 func _build_ui() -> void:
-	lbl_level = _make_label(Vector2(20, 20), 400, 36)
-	lbl_lives = _make_label(Vector2(20, 70), 400, 36)
-	lbl_pct = _make_label(Vector2(FIELD_W - 420, 20), 400, 36, HORIZONTAL_ALIGNMENT_RIGHT)
-	var btn_w := FIELD_W * 0.5 - 20
-	lbl_orient = _make_label(Vector2(10, CTRL_Y + 10), btn_w, 30, HORIZONTAL_ALIGNMENT_CENTER)
-	lbl_restart = _make_label(Vector2(FIELD_W * 0.5 + 10, CTRL_Y + 10), btn_w, 30, HORIZONTAL_ALIGNMENT_CENTER)
+	# HUD top row: LEVEL X | LIVES X
+	lbl_level = _make_label(Vector2(20, 18), 500, 44)
+	lbl_lives = _make_label(Vector2(FIELD_W - 520, 18), 500, 44, HORIZONTAL_ALIGNMENT_RIGHT)
+	# HUD bottom row: percent text centered above progress bar
+	lbl_pct = _make_label(Vector2(0, 78), FIELD_W, 32, HORIZONTAL_ALIGNMENT_CENTER)
+	# Toggle and restart button labels
+	lbl_orient = _make_label(rect_toggle.position + Vector2(0, 12), rect_toggle.size.x, 48, HORIZONTAL_ALIGNMENT_CENTER)
+	lbl_restart = _make_label(rect_restart.position + Vector2(0, 12), rect_restart.size.x, 40, HORIZONTAL_ALIGNMENT_CENTER)
 	lbl_restart.text = "RESTART"
+	# Overlay backdrop + title/sub labels
 	overlay_box = ColorRect.new()
 	overlay_box.color = Color(0, 0, 0, 0.78)
-	overlay_box.position = Vector2(0, FIELD_Y + FIELD_H * 0.35)
+	overlay_box.position = Vector2(0, FIELD_Y + FIELD_H * 0.30)
 	overlay_box.size = Vector2(FIELD_W, 280)
 	overlay_box.visible = false
 	add_child(overlay_box)
-	lbl_overlay_title = _make_label(Vector2(0, FIELD_Y + FIELD_H * 0.35 + 60), FIELD_W, 56, HORIZONTAL_ALIGNMENT_CENTER)
-	lbl_overlay_title.add_theme_color_override("font_color", Color(1, 1, 1))
-	lbl_overlay_sub = _make_label(Vector2(0, FIELD_Y + FIELD_H * 0.35 + 160), FIELD_W, 36, HORIZONTAL_ALIGNMENT_CENTER)
-	lbl_overlay_sub.add_theme_color_override("font_color", Color(1, 1, 1))
+	lbl_overlay_title = _make_label(Vector2(0, FIELD_Y + FIELD_H * 0.30 + 60), FIELD_W, 64, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 1, 1))
+	lbl_overlay_sub = _make_label(Vector2(0, FIELD_Y + FIELD_H * 0.30 + 170), FIELD_W, 36, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 1, 1))
 	lbl_overlay_title.visible = false
 	lbl_overlay_sub.visible = false
 
@@ -106,7 +125,7 @@ func _start_level(n: int) -> void:
 	_init_grid()
 	_spawn_balls(level)
 	state = GameState.PLAYING
-	intro_timer = 1.2
+	intro_timer = 1.0
 	queue_redraw()
 
 func _init_grid() -> void:
@@ -139,6 +158,10 @@ func _process(delta: float) -> void:
 			_update_balls(delta)
 			_check_wall_hits()
 			_check_win()
+	if btn_toggle_flash > 0.0:
+		btn_toggle_flash = max(0.0, btn_toggle_flash - delta * 4.0)
+	if btn_restart_flash > 0.0:
+		btn_restart_flash = max(0.0, btn_restart_flash - delta * 4.0)
 	_refresh_ui()
 	queue_redraw()
 
@@ -150,15 +173,15 @@ func _refresh_ui() -> void:
 	var pct := 0
 	if play_total > 0:
 		pct = int(round(float(captured) / float(play_total) * 100.0))
-	lbl_pct.text = "%d%% / %d%%" % [pct, int(TARGET * 100)]
-	lbl_orient.text = "VERTICAL" if orient_vertical else "HORIZONTAL"
+	lbl_pct.text = "%d %% / %d %%" % [pct, int(TARGET * 100)]
+	lbl_orient.text = ("VERTICAL  |" if orient_vertical else "HORIZONTAL  =")
 	var show_overlay := false
 	var t_text := ""
 	var s_text := ""
 	if state == GameState.PLAYING and intro_timer > 0.0:
 		show_overlay = true
 		t_text = "LEVEL %d" % level
-		s_text = "%d ball%s   %d lives" % [level, "" if level == 1 else "s", lives]
+		s_text = "%d ball%s,  %d lives" % [level, "" if level == 1 else "s", lives]
 	elif state == GameState.LEVEL_WIN:
 		show_overlay = true
 		t_text = "LEVEL CLEARED"
@@ -258,22 +281,22 @@ func _region_has_ball(region: Array) -> bool:
 	return false
 
 func _update_balls(delta: float) -> void:
-	# Note: avoid the global sign() — its Variant overload fails to load on
-	# some Android Godot 4.6 runtimes. Inline ternary works everywhere.
+	# Avoid the global sign(): its Variant overload breaks class-load on
+	# some Android Godot 4.6 runtimes. Inline ternaries are safe.
 	for b in balls:
 		var pos: Vector2 = b["pos"]
 		var vel: Vector2 = b["vel"]
-		var sign_x := 1.0 if vel.x >= 0.0 else -1.0
-		var sign_y := 1.0 if vel.y >= 0.0 else -1.0
+		var sx := 1.0 if vel.x >= 0.0 else -1.0
+		var sy := 1.0 if vel.y >= 0.0 else -1.0
 		var nx := pos.x + vel.x * delta
-		var probe_x := nx + sign_x * BALL_RADIUS
+		var probe_x := nx + sx * BALL_RADIUS
 		var px_cell := int((probe_x - FIELD_X) / CELL)
 		var py_cell := int((pos.y - FIELD_Y) / CELL)
 		if _solid_at(px_cell, py_cell):
 			vel.x = -vel.x
 			nx = pos.x + vel.x * delta
 		var ny := pos.y + vel.y * delta
-		var probe_y := ny + sign_y * BALL_RADIUS
+		var probe_y := ny + sy * BALL_RADIUS
 		var qx_cell := int((pos.x - FIELD_X) / CELL)
 		var qy_cell := int((probe_y - FIELD_Y) / CELL)
 		if _solid_at(qx_cell, qy_cell):
@@ -339,6 +362,7 @@ func _input(event: InputEvent) -> void:
 	if not pressed:
 		return
 
+	# End-of-level overlays consume the tap regardless of where it lands.
 	if state == GameState.LEVEL_WIN:
 		var nxt := level + 1
 		if nxt > MAX_LEVEL:
@@ -349,13 +373,18 @@ func _input(event: InputEvent) -> void:
 		_start_level(level)
 		return
 
-	if p.y >= CTRL_Y:
-		if p.x < FIELD_W * 0.5:
-			orient_vertical = !orient_vertical
-		else:
-			_start_level(level)
+	# Top-mounted control row first.
+	if rect_toggle.has_point(p):
+		orient_vertical = !orient_vertical
+		btn_toggle_flash = 0.25
 		queue_redraw()
 		return
+	if rect_restart.has_point(p):
+		btn_restart_flash = 0.25
+		_start_level(level)
+		return
+
+	# Otherwise treat as a wall-start tap inside the field.
 	if p.y >= FIELD_Y and p.y < FIELD_Y + FIELD_H and p.x >= FIELD_X and p.x < FIELD_X + FIELD_W:
 		var cx := int((p.x - FIELD_X) / CELL)
 		var cy := int((p.y - FIELD_Y) / CELL)
@@ -377,54 +406,62 @@ func _start_wall(cx: int, cy: int) -> void:
 	walls.append(w)
 
 func _draw() -> void:
+	# Bottom edge below the field is the same gray as the HUD background.
 	draw_rect(Rect2(0, 0, FIELD_W, 1920), COL_BG, true)
-	_draw_hud()
-	_draw_field()
+	_draw_hud_chrome()
 	_draw_controls()
+	_draw_field()
 
-func _draw_hud() -> void:
-	draw_rect(Rect2(0, 0, FIELD_W, HUD_H), COL_BG, true)
-	draw_rect(Rect2(0, HUD_H - 4, FIELD_W, 4), COL_BORDER, true)
-	var bar_w := FIELD_W - 40
-	var bar_x := 20.0
-	var bar_y := 130.0
-	draw_rect(Rect2(bar_x, bar_y, bar_w, 16), COL_BAR_BG, true)
+func _draw_hud_chrome() -> void:
+	# Progress bar inside HUD.
+	var bar_w := FIELD_W - 60.0
+	var bar_x := 30.0
+	var bar_y := 124.0
+	draw_rect(Rect2(bar_x, bar_y, bar_w, 22), COL_BAR_BG, true)
 	var fill := 0.0
 	if play_total > 0:
 		fill = bar_w * float(captured) / float(play_total)
-	draw_rect(Rect2(bar_x, bar_y, fill, 16), COL_BAR_FILL, true)
+	draw_rect(Rect2(bar_x, bar_y, fill, 22), COL_CAPTURED, true)
 	var target_x := bar_x + bar_w * TARGET
-	draw_line(Vector2(target_x, bar_y - 4), Vector2(target_x, bar_y + 20), COL_TEXT, 2)
+	draw_line(Vector2(target_x, bar_y - 6), Vector2(target_x, bar_y + 28), COL_TEXT, 3)
+
+func _draw_controls() -> void:
+	# Toggle button.
+	var tcol := COL_BTN_PRESSED if btn_toggle_flash > 0.0 else COL_BTN
+	draw_rect(rect_toggle, tcol, true)
+	draw_rect(rect_toggle, COL_BTN_BORDER, false, 4)
+	# Mode-color stripe down the left edge of the button so you can see the
+	# current orientation at a glance even before reading the label.
+	var stripe := Rect2(rect_toggle.position + Vector2(0, 0), Vector2(14, rect_toggle.size.y))
+	draw_rect(stripe, COL_WALL if orient_vertical else COL_CAPTURED, true)
+	# Restart button.
+	var rcol := COL_BTN_PRESSED if btn_restart_flash > 0.0 else COL_BTN
+	draw_rect(rect_restart, rcol, true)
+	draw_rect(rect_restart, COL_BTN_BORDER, false, 4)
 
 func _draw_field() -> void:
+	# Field interior background (slightly lighter than HUD bg).
+	draw_rect(Rect2(FIELD_X, FIELD_Y, FIELD_W, FIELD_H), COL_FIELD, true)
+	# Captured cells (solid blue with hatch lines for texture).
 	for x in range(1, COLS - 1):
 		for y in range(1, ROWS - 1):
-			var s = grid[x][y]
-			if s == CellState.CAPTURED:
-				draw_rect(Rect2(FIELD_X + x * CELL, FIELD_Y + y * CELL, CELL, CELL), COL_CAPTURED, true)
+			if grid[x][y] == CellState.CAPTURED:
+				var px := FIELD_X + x * CELL
+				var py := FIELD_Y + y * CELL
+				draw_rect(Rect2(px, py, CELL, CELL), COL_CAPTURED, true)
+	# Borders + walls + building (single pass over full grid).
 	for x in COLS:
 		for y in ROWS:
 			var s = grid[x][y]
-			if s == CellState.BORDER or s == CellState.WALL:
+			if s == CellState.BORDER:
+				draw_rect(Rect2(FIELD_X + x * CELL, FIELD_Y + y * CELL, CELL, CELL), COL_BORDER, true)
+			elif s == CellState.WALL:
 				draw_rect(Rect2(FIELD_X + x * CELL, FIELD_Y + y * CELL, CELL, CELL), COL_WALL, true)
 			elif s == CellState.BUILDING:
 				draw_rect(Rect2(FIELD_X + x * CELL, FIELD_Y + y * CELL, CELL, CELL), COL_BUILDING, true)
+	# Atoms — saturated red disc with single white highlight (Win3 sphere look).
 	for b in balls:
 		var p: Vector2 = b["pos"]
 		draw_circle(p, BALL_RADIUS + 1, COL_BALL_OUTLINE)
 		draw_circle(p, BALL_RADIUS, COL_BALL)
-		# 4-pole white checker spots — red+white alternation cue from original atom.
-		var r2 := BALL_RADIUS * 0.45
-		draw_circle(p + Vector2(-r2, 0), 3, COL_BALL_PATTERN)
-		draw_circle(p + Vector2(r2, 0), 3, COL_BALL_PATTERN)
-		draw_circle(p + Vector2(0, -r2), 3, COL_BALL_PATTERN)
-		draw_circle(p + Vector2(0, r2), 3, COL_BALL_PATTERN)
-
-func _draw_controls() -> void:
-	draw_rect(Rect2(0, CTRL_Y, FIELD_W, CTRL_H), COL_BG, true)
-	draw_rect(Rect2(0, CTRL_Y, FIELD_W, 4), COL_BORDER, true)
-	var btn_w := FIELD_W * 0.5 - 20
-	draw_rect(Rect2(10, CTRL_Y + 10, btn_w, CTRL_H - 20), COL_BTN, true)
-	draw_rect(Rect2(10, CTRL_Y + 10, btn_w, CTRL_H - 20), COL_BTN_BORDER, false, 3)
-	draw_rect(Rect2(FIELD_W * 0.5 + 10, CTRL_Y + 10, btn_w, CTRL_H - 20), COL_BTN, true)
-	draw_rect(Rect2(FIELD_W * 0.5 + 10, CTRL_Y + 10, btn_w, CTRL_H - 20), COL_BTN_BORDER, false, 3)
+		draw_circle(p + Vector2(-BALL_RADIUS * 0.35, -BALL_RADIUS * 0.35), BALL_RADIUS * 0.32, COL_BALL_DOT)
