@@ -1,10 +1,10 @@
 extends Node2D
 
-# DIAGNOSTIC v8 — bisect step 2. v7 confirmed bug is in {advance_walls, wall_cell,
-# flood, region_has_ball, update_balls, ball_overlaps_cell}. v8 adds Group A back:
-# advance_walls, wall_cell, flood. Group B (region_has_ball, update_balls,
-# ball_overlaps_cell) stays out.
-# Markers vanish → bug is in Group A. Markers stay → bug is in Group B.
+# DIAGNOSTIC v9 — bisect step 3. v8 confirmed bug is in Group B:
+# {region_has_ball, update_balls, ball_overlaps_cell}. v9 adds ONE: update_balls
+# (highest suspicion: uses sign(vel.x) * BALL_RADIUS and a long float-math chain).
+# Markers vanish → update_balls is the offender. Markers stay → bug is in
+# {region_has_ball, ball_overlaps_cell}, narrowed in v10.
 
 const COLS := 36
 const ROWS := 56
@@ -64,7 +64,7 @@ var lbl_overlay_sub: Label
 var overlay_box: ColorRect
 
 func _ready() -> void:
-	_diag_rect(0, Color(1, 0, 1), 1580)   # MAGENTA build tag (v8)
+	_diag_rect(0, Color(1, 0, 1), 1580)   # MAGENTA build tag (v9)
 	_diag_rect(0, Color(1, 0, 0), 1820)
 	_diag_rect(1, Color(0, 1, 0), 1820)
 	_diag_rect(2, Color(0, 0, 1), 1820)
@@ -198,6 +198,27 @@ func _flood(sx: int, sy: int, visited: Array) -> Array:
 		stack.append(Vector2i(c.x, c.y + 1))
 		stack.append(Vector2i(c.x, c.y - 1))
 	return region
+
+func _update_balls(delta: float) -> void:
+	for b in balls:
+		var pos: Vector2 = b["pos"]
+		var vel: Vector2 = b["vel"]
+		var nx := pos.x + vel.x * delta
+		var probe_x := nx + sign(vel.x) * BALL_RADIUS
+		var px_cell := int((probe_x - FIELD_X) / CELL)
+		var py_cell := int((pos.y - FIELD_Y) / CELL)
+		if _solid_at(px_cell, py_cell):
+			vel.x = -vel.x
+			nx = pos.x + vel.x * delta
+		var ny := pos.y + vel.y * delta
+		var probe_y := ny + sign(vel.y) * BALL_RADIUS
+		var qx_cell := int((pos.x - FIELD_X) / CELL)
+		var qy_cell := int((probe_y - FIELD_Y) / CELL)
+		if _solid_at(qx_cell, qy_cell):
+			vel.y = -vel.y
+			ny = pos.y + vel.y * delta
+		b["pos"] = Vector2(nx, ny)
+		b["vel"] = vel
 
 func _diag_rect(idx: int, c: Color, y: float) -> void:
 	var r := ColorRect.new()
