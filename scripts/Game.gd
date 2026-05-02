@@ -14,24 +14,25 @@ const FIELD_Y := HUD_H + CTRL_H        # 290
 const FIELD_W := COLS * CELL           # 1080
 const FIELD_H := ROWS * CELL           # 1500
 
-# Saturated palette taken directly from the inspiration screenshot:
-# black HUD/frame, light gray field with subtle grid, solid red walls,
-# solid blue capture fills, white text, red+white atom.
+# Mostly-gray palette with small red/blue accents — closer to the original
+# Win3 game's overall feel (gray field dominates; walls and captures are
+# muted, not loud).
 const COL_BG := Color(0.0, 0.0, 0.0)           # outer area / HUD background
-const COL_FIELD := Color(0.78, 0.78, 0.78)     # field cell base color (Win3 face)
+const COL_FIELD := Color(0.80, 0.80, 0.80)     # field cell base color
 const COL_GRID := Color(0.62, 0.62, 0.62)      # grid lines between cells
-const COL_BORDER := Color(0.0, 0.0, 0.0)       # field outer border (black)
-const COL_WALL := Color(0.92, 0.05, 0.05)      # saturated RED for completed wall
-const COL_BUILDING := Color(0.05, 0.05, 0.92)  # saturated BLUE for growing tip
-const COL_CAPTURED := Color(0.05, 0.10, 0.85)  # solid BLUE capture fill
-const COL_BALL := Color(0.94, 0.08, 0.08)      # bright red atom
+const COL_BORDER := Color(0.10, 0.10, 0.10)    # field outer border
+const COL_WALL := Color(0.55, 0.10, 0.10)      # muted dark red completed wall
+const COL_BUILDING := Color(0.78, 0.18, 0.18)  # slightly brighter red tip
+const COL_CAPTURED := Color(0.42, 0.46, 0.62)  # muted blue-gray capture fill
+const COL_BALL := Color(0.65, 0.12, 0.12)      # red atom (not bright)
 const COL_BALL_DOT := Color(1.0, 1.0, 1.0)     # white highlight
-const COL_BALL_OUTLINE := Color(0.30, 0.0, 0.0)
+const COL_BALL_OUTLINE := Color(0.25, 0.0, 0.0)
 const COL_TEXT := Color(1.0, 1.0, 1.0)         # white text on black HUD
 const COL_BTN := Color(0.18, 0.18, 0.18)       # dark button on black HUD
 const COL_BTN_PRESSED := Color(0.32, 0.32, 0.32)
 const COL_BTN_BORDER := Color(0.65, 0.65, 0.65)
 const COL_BAR_BG := Color(0.18, 0.18, 0.18)
+const COL_PREVIEW := Color(0.95, 0.95, 0.95, 0.5) # touch-preview line on field
 
 const BALL_RADIUS := 22.0
 const BALL_SPEED := 420.0
@@ -64,9 +65,17 @@ var lbl_overlay_title: Label
 var lbl_overlay_sub: Label
 var overlay_box: ColorRect
 
-# Single RESTART button rect. Wall direction is determined by where in the cell
-# the user taps (top/bottom strip = vertical, left/right strip = horizontal).
+# Single RESTART button. Wall direction is determined by SWIPE direction
+# between touch-down and touch-up.
 var rect_restart: Rect2
+
+# Anchor for swipe gesture: on touch-down inside a valid empty cell, store
+# pixel position + cell. On touch-up, the |dx| / |dy| from anchor decides
+# orientation, then the wall commits at the original anchor cell.
+var anchor_x := 0.0
+var anchor_y := 0.0
+var anchor_cx := -1
+var anchor_cy := -1
 
 func _ready() -> void:
 	randomize()
@@ -98,7 +107,7 @@ func _build_ui() -> void:
 	lbl_pct = _make_label(Vector2(0, 78), FIELD_W, 32, HORIZONTAL_ALIGNMENT_CENTER)
 	# Hint label + RESTART button.
 	lbl_hint = _make_label(Vector2(20, HUD_H + 30), FIELD_W - rect_restart.size.x - 60, 28, HORIZONTAL_ALIGNMENT_LEFT)
-	lbl_hint.text = "Tap top/bottom of cell  ↕      Tap left/right of cell  ↔"
+	lbl_hint.text = "Press a cell, swipe up/down for ↕  or  left/right for ↔"
 	lbl_restart = _make_label(rect_restart.position + Vector2(0, 22), rect_restart.size.x, 40, HORIZONTAL_ALIGNMENT_CENTER)
 	lbl_restart.text = "RESTART"
 	# Overlay backdrop + title/sub labels
@@ -358,46 +367,50 @@ func _input(event: InputEvent) -> void:
 		p = event.position
 	else:
 		return
-	if not pressed:
+
+	if pressed:
+		# Overlays consume the tap.
+		if state == GameState.LEVEL_WIN:
+			var nxt := level + 1
+			if nxt > MAX_LEVEL:
+				nxt = 1
+			_start_level(nxt)
+			return
+		if state == GameState.LEVEL_LOSE:
+			_start_level(level)
+			return
+		if rect_restart.has_point(p):
+			btn_restart_flash = 0.25
+			_start_level(level)
+			anchor_cx = -1
+			return
+		# Field tap → record anchor; wall commits on release.
+		anchor_cx = -1
+		if p.y >= FIELD_Y and p.y < FIELD_Y + FIELD_H and p.x >= FIELD_X and p.x < FIELD_X + FIELD_W:
+			var cx := int((p.x - FIELD_X) / CELL)
+			var cy := int((p.y - FIELD_Y) / CELL)
+			if cx >= 1 and cx < COLS - 1 and cy >= 1 and cy < ROWS - 1 and grid[cx][cy] == CellState.EMPTY:
+				anchor_x = p.x
+				anchor_y = p.y
+				anchor_cx = cx
+				anchor_cy = cy
 		return
 
-	# End-of-level overlays consume the tap regardless of where it lands.
-	if state == GameState.LEVEL_WIN:
-		var nxt := level + 1
-		if nxt > MAX_LEVEL:
-			nxt = 1
-		_start_level(nxt)
+	# RELEASED.
+	if anchor_cx < 0:
 		return
-	if state == GameState.LEVEL_LOSE:
-		_start_level(level)
-		return
-
-	# Restart button.
-	if rect_restart.has_point(p):
-		btn_restart_flash = 0.25
-		_start_level(level)
-		return
-
-	# Field tap. Direction comes from WHERE within the cell the finger landed:
-	# - taps in the top or bottom strip of the cell → VERTICAL wall
-	# - taps in the left or right strip of the cell → HORIZONTAL wall
-	# Computed from |dx_from_center| vs |dy_from_center|.
-	if p.y >= FIELD_Y and p.y < FIELD_Y + FIELD_H and p.x >= FIELD_X and p.x < FIELD_X + FIELD_W:
-		var cx := int((p.x - FIELD_X) / CELL)
-		var cy := int((p.y - FIELD_Y) / CELL)
-		if cx >= 1 and cx < COLS - 1 and cy >= 1 and cy < ROWS - 1:
-			if grid[cx][cy] == CellState.EMPTY:
-				# 12-pixel deadzone in the cell center — tapping anywhere in
-				# that zone keeps the previous orientation, so mis-aimed taps
-				# don't randomly flip the wall axis. Outside the deadzone,
-				# the bigger axis wins.
-				var ox := p.x - (FIELD_X + cx * CELL + CELL * 0.5)
-				var oy := p.y - (FIELD_Y + cy * CELL + CELL * 0.5)
-				var ax := ox if ox >= 0.0 else -ox
-				var ay := oy if oy >= 0.0 else -oy
-				if ax > 12.0 or ay > 12.0:
-					orient_vertical = ay > ax
-				_start_wall(cx, cy)
+	var dx_signed := p.x - anchor_x
+	var dy_signed := p.y - anchor_y
+	var ax := dx_signed if dx_signed >= 0.0 else -dx_signed
+	var ay := dy_signed if dy_signed >= 0.0 else -dy_signed
+	# Need a clear swipe (>= 25 px) on one axis to flip orientation.
+	# Tap with no swipe keeps current orient_vertical (so consecutive taps
+	# stay in the same direction without re-swiping).
+	if ax >= 25.0 or ay >= 25.0:
+		orient_vertical = ay > ax
+	if grid[anchor_cx][anchor_cy] == CellState.EMPTY:
+		_start_wall(anchor_cx, anchor_cy)
+	anchor_cx = -1
 
 func _start_wall(cx: int, cy: int) -> void:
 	var w := {
@@ -469,3 +482,13 @@ func _draw_field() -> void:
 		draw_circle(p, BALL_RADIUS + 2, COL_BALL_OUTLINE)
 		draw_circle(p, BALL_RADIUS, COL_BALL)
 		draw_circle(p + Vector2(-BALL_RADIUS * 0.35, -BALL_RADIUS * 0.35), BALL_RADIUS * 0.30, COL_BALL_DOT)
+	# Swipe preview while finger is down on a valid cell — semi-transparent
+	# guide line through the anchor cell in the orientation the wall WILL take.
+	if anchor_cx >= 0:
+		var ax_px := FIELD_X + anchor_cx * CELL + CELL * 0.5
+		var ay_px := FIELD_Y + anchor_cy * CELL + CELL * 0.5
+		if orient_vertical:
+			draw_line(Vector2(ax_px, FIELD_Y + CELL), Vector2(ax_px, FIELD_Y + FIELD_H - CELL), COL_PREVIEW, 4)
+		else:
+			draw_line(Vector2(FIELD_X + CELL, ay_px), Vector2(FIELD_X + FIELD_W - CELL, ay_px), COL_PREVIEW, 4)
+		draw_circle(Vector2(ax_px, ay_px), 8, Color(1, 1, 1, 0.6))
