@@ -51,32 +51,38 @@ var captured := 0
 var play_total := 0
 var state: int = GameState.PLAYING
 var intro_timer := 0.0
-var btn_toggle_flash := 0.0
 var btn_restart_flash := 0.0
 
 var lbl_level: Label
 var lbl_lives: Label
 var lbl_pct: Label
-var lbl_orient: Label
+var lbl_mode: Label
 var lbl_restart: Label
 var lbl_overlay_title: Label
 var lbl_overlay_sub: Label
 var overlay_box: ColorRect
 
-# Control button rects, computed once in _ready.
-var rect_toggle: Rect2
+# Control rect, computed once in _ready.
 var rect_restart: Rect2
+var rect_mode: Rect2
+
+# Pending wall touch — finger went down on a field cell. Wall commits on release.
+var pending_active := false
+var pending_pos := Vector2.ZERO
+var pending_cell := Vector2i.ZERO
+var pending_drag_pos := Vector2.ZERO
+const SWIPE_THRESH := 30.0
 
 func _ready() -> void:
 	randomize()
-	# Toggle takes 66%, Restart takes 33% of the control row.
+	# Mode-indicator panel (left ~66%) is non-interactive; Restart button (right ~33%).
 	var pad := 12.0
 	var ctrl_top := HUD_H + 8
 	var ctrl_h := CTRL_H - 16
-	var toggle_w := (FIELD_W - 3 * pad) * 0.66
-	var restart_w := (FIELD_W - 3 * pad) - toggle_w
-	rect_toggle = Rect2(pad, ctrl_top, toggle_w, ctrl_h)
-	rect_restart = Rect2(pad + toggle_w + pad, ctrl_top, restart_w, ctrl_h)
+	var mode_w := (FIELD_W - 3 * pad) * 0.66
+	var restart_w := (FIELD_W - 3 * pad) - mode_w
+	rect_mode = Rect2(pad, ctrl_top, mode_w, ctrl_h)
+	rect_restart = Rect2(pad + mode_w + pad, ctrl_top, restart_w, ctrl_h)
 	_build_ui()
 	_start_level(1)
 
@@ -97,9 +103,9 @@ func _build_ui() -> void:
 	lbl_lives = _make_label(Vector2(FIELD_W - 520, 18), 500, 44, HORIZONTAL_ALIGNMENT_RIGHT)
 	# HUD bottom row: percent text centered above progress bar
 	lbl_pct = _make_label(Vector2(0, 78), FIELD_W, 32, HORIZONTAL_ALIGNMENT_CENTER)
-	# Toggle and restart button labels
-	lbl_orient = _make_label(rect_toggle.position + Vector2(0, 12), rect_toggle.size.x, 48, HORIZONTAL_ALIGNMENT_CENTER)
-	lbl_restart = _make_label(rect_restart.position + Vector2(0, 12), rect_restart.size.x, 40, HORIZONTAL_ALIGNMENT_CENTER)
+	# Mode indicator + restart button labels
+	lbl_mode = _make_label(rect_mode.position + Vector2(0, 18), rect_mode.size.x, 36, HORIZONTAL_ALIGNMENT_CENTER)
+	lbl_restart = _make_label(rect_restart.position + Vector2(0, 18), rect_restart.size.x, 36, HORIZONTAL_ALIGNMENT_CENTER)
 	lbl_restart.text = "RESTART"
 	# Overlay backdrop + title/sub labels
 	overlay_box = ColorRect.new()
@@ -158,8 +164,6 @@ func _process(delta: float) -> void:
 			_update_balls(delta)
 			_check_wall_hits()
 			_check_win()
-	if btn_toggle_flash > 0.0:
-		btn_toggle_flash = max(0.0, btn_toggle_flash - delta * 4.0)
 	if btn_restart_flash > 0.0:
 		btn_restart_flash = max(0.0, btn_restart_flash - delta * 4.0)
 	_refresh_ui()
@@ -174,7 +178,7 @@ func _refresh_ui() -> void:
 	if play_total > 0:
 		pct = int(round(float(captured) / float(play_total) * 100.0))
 	lbl_pct.text = "%d %% / %d %%" % [pct, int(TARGET * 100)]
-	lbl_orient.text = ("VERTICAL  |" if orient_vertical else "HORIZONTAL  =")
+	lbl_mode.text = ("MODE  |  ↕ VERTICAL" if orient_vertical else "MODE  |  ↔ HORIZONTAL")
 	var show_overlay := false
 	var t_text := ""
 	var s_text := ""
@@ -349,20 +353,25 @@ func _check_win() -> void:
 		state = GameState.LEVEL_WIN
 
 func _input(event: InputEvent) -> void:
-	var pressed := false
-	var p := Vector2.ZERO
 	if event is InputEventScreenTouch:
-		pressed = event.pressed
-		p = event.position
+		if event.pressed:
+			_on_touch_down(event.position)
+		else:
+			_on_touch_up(event.position)
+	elif event is InputEventScreenDrag:
+		_on_drag(event.position)
 	elif event is InputEventMouseButton:
-		pressed = event.pressed
-		p = event.position
-	else:
-		return
-	if not pressed:
-		return
+		if event.pressed:
+			_on_touch_down(event.position)
+		else:
+			_on_touch_up(event.position)
+	elif event is InputEventMouseMotion:
+		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+			_on_drag(event.position)
 
-	# End-of-level overlays consume the tap regardless of where it lands.
+func _on_touch_down(p: Vector2) -> void:
+	pending_active = false
+	# End-of-level overlays consume the tap.
 	if state == GameState.LEVEL_WIN:
 		var nxt := level + 1
 		if nxt > MAX_LEVEL:
@@ -372,25 +381,49 @@ func _input(event: InputEvent) -> void:
 	if state == GameState.LEVEL_LOSE:
 		_start_level(level)
 		return
-
-	# Top-mounted control row first.
-	if rect_toggle.has_point(p):
-		orient_vertical = !orient_vertical
-		btn_toggle_flash = 0.25
-		queue_redraw()
-		return
+	# Restart button.
 	if rect_restart.has_point(p):
 		btn_restart_flash = 0.25
 		_start_level(level)
 		return
-
-	# Otherwise treat as a wall-start tap inside the field.
+	# Field tap — record but don't start the wall yet. Direction is decided
+	# by what the finger does between touch-down and touch-up.
 	if p.y >= FIELD_Y and p.y < FIELD_Y + FIELD_H and p.x >= FIELD_X and p.x < FIELD_X + FIELD_W:
 		var cx := int((p.x - FIELD_X) / CELL)
 		var cy := int((p.y - FIELD_Y) / CELL)
 		if cx >= 1 and cx < COLS - 1 and cy >= 1 and cy < ROWS - 1:
 			if grid[cx][cy] == CellState.EMPTY:
-				_start_wall(cx, cy)
+				pending_active = true
+				pending_pos = p
+				pending_cell = Vector2i(cx, cy)
+				pending_drag_pos = p
+
+func _on_drag(p: Vector2) -> void:
+	if not pending_active:
+		return
+	pending_drag_pos = p
+	# Live-update orientation based on the bigger axis once we cross the
+	# swipe threshold. Visual indicator updates next _refresh_ui call.
+	var dx := abs(p.x - pending_pos.x)
+	var dy := abs(p.y - pending_pos.y)
+	if dx > SWIPE_THRESH or dy > SWIPE_THRESH:
+		orient_vertical = (dy >= dx)
+
+func _on_touch_up(p: Vector2) -> void:
+	if not pending_active:
+		return
+	pending_active = false
+	# Final orientation update from release point (in case the finger slid
+	# after we last got a drag event).
+	var dx := abs(p.x - pending_pos.x)
+	var dy := abs(p.y - pending_pos.y)
+	if dx > SWIPE_THRESH or dy > SWIPE_THRESH:
+		orient_vertical = (dy >= dx)
+	# Commit the wall at the cell we ORIGINALLY touched, in the resolved
+	# direction. (If finger barely moved, orient_vertical keeps its previous
+	# value, so consecutive taps build walls in the same direction.)
+	if grid[pending_cell.x][pending_cell.y] == CellState.EMPTY:
+		_start_wall(pending_cell.x, pending_cell.y)
 
 func _start_wall(cx: int, cy: int) -> void:
 	var w := {
@@ -426,13 +459,12 @@ func _draw_hud_chrome() -> void:
 	draw_line(Vector2(target_x, bar_y - 6), Vector2(target_x, bar_y + 28), COL_TEXT, 3)
 
 func _draw_controls() -> void:
-	# Toggle button.
-	var tcol := COL_BTN_PRESSED if btn_toggle_flash > 0.0 else COL_BTN
-	draw_rect(rect_toggle, tcol, true)
-	draw_rect(rect_toggle, COL_BTN_BORDER, false, 4)
-	# Mode-color stripe down the left edge of the button so you can see the
-	# current orientation at a glance even before reading the label.
-	var stripe := Rect2(rect_toggle.position + Vector2(0, 0), Vector2(14, rect_toggle.size.y))
+	# Mode panel (read-only; orientation comes from finger gesture in field).
+	draw_rect(rect_mode, COL_BTN, true)
+	draw_rect(rect_mode, COL_BTN_BORDER, false, 4)
+	# Color stripe down the left side of the panel — red when next wall would
+	# be vertical, blue when horizontal.
+	var stripe := Rect2(rect_mode.position, Vector2(14, rect_mode.size.y))
 	draw_rect(stripe, COL_WALL if orient_vertical else COL_CAPTURED, true)
 	# Restart button.
 	var rcol := COL_BTN_PRESSED if btn_restart_flash > 0.0 else COL_BTN
@@ -465,3 +497,16 @@ func _draw_field() -> void:
 		draw_circle(p, BALL_RADIUS + 1, COL_BALL_OUTLINE)
 		draw_circle(p, BALL_RADIUS, COL_BALL)
 		draw_circle(p + Vector2(-BALL_RADIUS * 0.35, -BALL_RADIUS * 0.35), BALL_RADIUS * 0.32, COL_BALL_DOT)
+	# Touch preview: while finger is down on a field cell, show a faint line
+	# through the touched cell in the orientation the wall WILL grow.
+	if pending_active:
+		var c := pending_cell
+		var px := FIELD_X + c.x * CELL + CELL * 0.5
+		var py := FIELD_Y + c.y * CELL + CELL * 0.5
+		var preview_col := Color(COL_WALL.r, COL_WALL.g, COL_WALL.b, 0.45) if orient_vertical else Color(COL_CAPTURED.r, COL_CAPTURED.g, COL_CAPTURED.b, 0.45)
+		if orient_vertical:
+			draw_line(Vector2(px, FIELD_Y + CELL), Vector2(px, FIELD_Y + FIELD_H - CELL), preview_col, 6)
+		else:
+			draw_line(Vector2(FIELD_X + CELL, py), Vector2(FIELD_X + FIELD_W - CELL, py), preview_col, 6)
+		# Marker dot at touched cell.
+		draw_circle(Vector2(px, py), 8, COL_WALL if orient_vertical else COL_CAPTURED)
