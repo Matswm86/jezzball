@@ -58,9 +58,20 @@ var lbl_overlay_sub: Label
 var overlay_box: ColorRect
 
 func _ready() -> void:
+	_diag_rect(0, Color(1, 0, 0))   # RED  — _ready entered
 	randomize()
+	_diag_rect(1, Color(0, 1, 0))   # GREEN — randomize ok
 	_build_ui()
+	_diag_rect(2, Color(0, 0, 1))   # BLUE  — _build_ui ok
 	_start_level(1)
+	_diag_rect(3, Color(1, 1, 0))   # YELLOW — _start_level ok
+
+func _diag_rect(idx: int, c: Color) -> void:
+	var r := ColorRect.new()
+	r.color = c
+	r.position = Vector2(idx * 270, 1820)
+	r.size = Vector2(260, 100)
+	add_child(r)
 
 func _make_label(pos: Vector2, w: float, fs: int, halign: int = HORIZONTAL_ALIGNMENT_LEFT) -> Label:
 	var l := Label.new()
