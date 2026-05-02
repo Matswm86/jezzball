@@ -37,7 +37,7 @@ const COL_PREVIEW := Color(0.95, 0.95, 0.95, 0.5) # touch-preview line on field
 const BALL_RADIUS := 22.0
 const BALL_SPEED := 380.0
 const WALL_SPEED := 9.0
-const TARGET := 0.55
+const TARGET := 0.70
 const MAX_LEVEL := 50
 
 enum CellState { EMPTY, BORDER, WALL, BUILDING, CAPTURED }
