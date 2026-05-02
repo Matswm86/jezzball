@@ -51,6 +51,7 @@ var captured := 0
 var play_total := 0
 var state: int = GameState.PLAYING
 var intro_timer := 0.0
+var btn_toggle_flash := 0.0
 var btn_restart_flash := 0.0
 
 var lbl_level: Label
@@ -63,25 +64,19 @@ var lbl_overlay_sub: Label
 var overlay_box: ColorRect
 
 # Control button rects, computed once in _ready.
-var rect_mode: Rect2
+var rect_toggle: Rect2
 var rect_restart: Rect2
-
-# Gesture state: track press location and which cell it landed on (if any).
-# Plain ints + Vector2 to avoid the Vector2i.ZERO / class-const tricks.
-var touch_down_x := 0.0
-var touch_down_y := 0.0
-var touch_cell_x := -1
-var touch_cell_y := -1
 
 func _ready() -> void:
 	randomize()
+	# Toggle takes 66%, Restart takes 33% of the control row.
 	var pad := 12.0
 	var ctrl_top := HUD_H + 8
 	var ctrl_h := CTRL_H - 16
-	var mode_w := (FIELD_W - 3 * pad) * 0.66
-	var restart_w := (FIELD_W - 3 * pad) - mode_w
-	rect_mode = Rect2(pad, ctrl_top, mode_w, ctrl_h)
-	rect_restart = Rect2(pad + mode_w + pad, ctrl_top, restart_w, ctrl_h)
+	var toggle_w := (FIELD_W - 3 * pad) * 0.66
+	var restart_w := (FIELD_W - 3 * pad) - toggle_w
+	rect_toggle = Rect2(pad, ctrl_top, toggle_w, ctrl_h)
+	rect_restart = Rect2(pad + toggle_w + pad, ctrl_top, restart_w, ctrl_h)
 	_build_ui()
 	_start_level(1)
 
@@ -102,9 +97,9 @@ func _build_ui() -> void:
 	lbl_lives = _make_label(Vector2(FIELD_W - 520, 18), 500, 44, HORIZONTAL_ALIGNMENT_RIGHT)
 	# HUD bottom row: percent text centered above progress bar
 	lbl_pct = _make_label(Vector2(0, 78), FIELD_W, 32, HORIZONTAL_ALIGNMENT_CENTER)
-	# Mode-indicator panel (read-only) + restart button.
-	lbl_orient = _make_label(rect_mode.position + Vector2(0, 18), rect_mode.size.x, 36, HORIZONTAL_ALIGNMENT_CENTER)
-	lbl_restart = _make_label(rect_restart.position + Vector2(0, 18), rect_restart.size.x, 36, HORIZONTAL_ALIGNMENT_CENTER)
+	# Toggle and restart button labels
+	lbl_orient = _make_label(rect_toggle.position + Vector2(0, 12), rect_toggle.size.x, 48, HORIZONTAL_ALIGNMENT_CENTER)
+	lbl_restart = _make_label(rect_restart.position + Vector2(0, 12), rect_restart.size.x, 40, HORIZONTAL_ALIGNMENT_CENTER)
 	lbl_restart.text = "RESTART"
 	# Overlay backdrop + title/sub labels
 	overlay_box = ColorRect.new()
@@ -163,6 +158,8 @@ func _process(delta: float) -> void:
 			_update_balls(delta)
 			_check_wall_hits()
 			_check_win()
+	if btn_toggle_flash > 0.0:
+		btn_toggle_flash = max(0.0, btn_toggle_flash - delta * 4.0)
 	if btn_restart_flash > 0.0:
 		btn_restart_flash = max(0.0, btn_restart_flash - delta * 4.0)
 	_refresh_ui()
@@ -177,7 +174,7 @@ func _refresh_ui() -> void:
 	if play_total > 0:
 		pct = int(round(float(captured) / float(play_total) * 100.0))
 	lbl_pct.text = "%d %% / %d %%" % [pct, int(TARGET * 100)]
-	lbl_orient.text = ("MODE  |  ↕ VERTICAL" if orient_vertical else "MODE  |  ↔ HORIZONTAL")
+	lbl_orient.text = ("VERTICAL  |" if orient_vertical else "HORIZONTAL  =")
 	var show_overlay := false
 	var t_text := ""
 	var s_text := ""
@@ -352,10 +349,6 @@ func _check_win() -> void:
 		state = GameState.LEVEL_WIN
 
 func _input(event: InputEvent) -> void:
-	# Only handle screen-touch and mouse-button events. NO InputEventScreenDrag
-	# class reference (which seems to break class-load on the user's Android
-	# runtime, same family as the sign() bug). Direction is determined by
-	# comparing touch-up position to recorded touch-down position.
 	var pressed := false
 	var p := Vector2.ZERO
 	if event is InputEventScreenTouch:
@@ -366,54 +359,38 @@ func _input(event: InputEvent) -> void:
 		p = event.position
 	else:
 		return
-
-	if pressed:
-		# Record where the finger went down.
-		touch_down_x = p.x
-		touch_down_y = p.y
-		touch_cell_x = -1
-		touch_cell_y = -1
-		# State overlays still want to react on touch-down for snappy feel.
-		if state == GameState.LEVEL_WIN:
-			var nxt := level + 1
-			if nxt > MAX_LEVEL:
-				nxt = 1
-			_start_level(nxt)
-			return
-		if state == GameState.LEVEL_LOSE:
-			_start_level(level)
-			return
-		if rect_restart.has_point(p):
-			# Defer the actual restart to release so a stray touch doesn't
-			# reset on a casual press, but flag the press so we know.
-			return
-		# Inside field — record cell, but don't start wall yet.
-		if p.y >= FIELD_Y and p.y < FIELD_Y + FIELD_H and p.x >= FIELD_X and p.x < FIELD_X + FIELD_W:
-			var cx := int((p.x - FIELD_X) / CELL)
-			var cy := int((p.y - FIELD_Y) / CELL)
-			if cx >= 1 and cx < COLS - 1 and cy >= 1 and cy < ROWS - 1 and grid[cx][cy] == CellState.EMPTY:
-				touch_cell_x = cx
-				touch_cell_y = cy
+	if not pressed:
 		return
 
-	# RELEASED.
-	if state != GameState.PLAYING:
+	# End-of-level overlays consume the tap regardless of where it lands.
+	if state == GameState.LEVEL_WIN:
+		var nxt := level + 1
+		if nxt > MAX_LEVEL:
+			nxt = 1
+		_start_level(nxt)
+		return
+	if state == GameState.LEVEL_LOSE:
+		_start_level(level)
+		return
+
+	# Top-mounted control row first.
+	if rect_toggle.has_point(p):
+		orient_vertical = !orient_vertical
+		btn_toggle_flash = 0.25
+		queue_redraw()
 		return
 	if rect_restart.has_point(p):
 		btn_restart_flash = 0.25
 		_start_level(level)
 		return
-	# If we recorded a valid field cell on press, commit a wall there.
-	if touch_cell_x >= 0:
-		var dx := abs(p.x - touch_down_x)
-		var dy := abs(p.y - touch_down_y)
-		if dx > 30.0 or dy > 30.0:
-			# Direction follows the bigger axis of the swipe.
-			orient_vertical = dy >= dx
-		# else: keep previous orient (consecutive taps stay same direction).
-		if grid[touch_cell_x][touch_cell_y] == CellState.EMPTY:
-			_start_wall(touch_cell_x, touch_cell_y)
-		touch_cell_x = -1
+
+	# Otherwise treat as a wall-start tap inside the field.
+	if p.y >= FIELD_Y and p.y < FIELD_Y + FIELD_H and p.x >= FIELD_X and p.x < FIELD_X + FIELD_W:
+		var cx := int((p.x - FIELD_X) / CELL)
+		var cy := int((p.y - FIELD_Y) / CELL)
+		if cx >= 1 and cx < COLS - 1 and cy >= 1 and cy < ROWS - 1:
+			if grid[cx][cy] == CellState.EMPTY:
+				_start_wall(cx, cy)
 
 func _start_wall(cx: int, cy: int) -> void:
 	var w := {
@@ -449,12 +426,14 @@ func _draw_hud_chrome() -> void:
 	draw_line(Vector2(target_x, bar_y - 6), Vector2(target_x, bar_y + 28), COL_TEXT, 3)
 
 func _draw_controls() -> void:
-	# Mode panel (read-only — orientation comes from finger gesture in field).
-	draw_rect(rect_mode, COL_BTN, true)
-	draw_rect(rect_mode, COL_BTN_BORDER, false, 4)
-	# Color stripe on the left side: red for vertical, blue for horizontal.
-	var stripe_col := COL_WALL if orient_vertical else COL_CAPTURED
-	draw_rect(Rect2(rect_mode.position, Vector2(14, rect_mode.size.y)), stripe_col, true)
+	# Toggle button.
+	var tcol := COL_BTN_PRESSED if btn_toggle_flash > 0.0 else COL_BTN
+	draw_rect(rect_toggle, tcol, true)
+	draw_rect(rect_toggle, COL_BTN_BORDER, false, 4)
+	# Mode-color stripe down the left edge of the button so you can see the
+	# current orientation at a glance even before reading the label.
+	var stripe := Rect2(rect_toggle.position + Vector2(0, 0), Vector2(14, rect_toggle.size.y))
+	draw_rect(stripe, COL_WALL if orient_vertical else COL_CAPTURED, true)
 	# Restart button.
 	var rcol := COL_BTN_PRESSED if btn_restart_flash > 0.0 else COL_BTN
 	draw_rect(rect_restart, rcol, true)
