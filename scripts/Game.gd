@@ -353,21 +353,24 @@ func _check_win() -> void:
 		state = GameState.LEVEL_WIN
 
 func _input(event: InputEvent) -> void:
+	# Touch path (real device).
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			_on_touch_down(event.position)
 		else:
 			_on_touch_up(event.position)
-	elif event is InputEventScreenDrag:
+		return
+	if event is InputEventScreenDrag:
 		_on_drag(event.position)
-	elif event is InputEventMouseButton:
+		return
+	# Desktop mouse fallback. We don't track motion-while-pressed because the
+	# global Input.is_mouse_button_pressed call broke class-load on the
+	# user's Android runtime in v0.3.
+	if event is InputEventMouseButton:
 		if event.pressed:
 			_on_touch_down(event.position)
 		else:
 			_on_touch_up(event.position)
-	elif event is InputEventMouseMotion:
-		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-			_on_drag(event.position)
 
 func _on_touch_down(p: Vector2) -> void:
 	pending_active = false
