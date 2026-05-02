@@ -431,6 +431,9 @@ func _start_wall(cx: int, cy: int) -> void:
 func _draw() -> void:
 	# Bottom edge below the field is the same gray as the HUD background.
 	draw_rect(Rect2(0, 0, FIELD_W, 1920), COL_BG, true)
+	# v0.5 build-version verifier: bright yellow strip across the very top.
+	# If you don't see this on the device, you're installing a cached APK.
+	draw_rect(Rect2(0, 0, FIELD_W, 12), Color(1, 1, 0), true)
 	_draw_hud_chrome()
 	_draw_controls()
 	_draw_field()
