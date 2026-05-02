@@ -8,7 +8,7 @@ on:
 
 env:
   GODOT_VERSION: 4.6.2
-  EXPORT_NAME: jezzball
+  EXPORT_NAME: jezzball-fresh
 
 permissions:
   contents: write
