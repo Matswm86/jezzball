@@ -12,18 +12,20 @@ const HUD_H := 160.0
 const CTRL_Y := FIELD_Y + FIELD_H
 const CTRL_H := 80.0
 
-const COL_BG := Color(0.0, 0.0, 0.0)
-const COL_BORDER := Color(0.0, 0.667, 0.667)
-const COL_WALL := Color(0.0, 0.667, 0.667)
-const COL_BUILDING := Color(0.0, 1.0, 1.0)
-const COL_CAPTURED := Color(0.0, 0.0, 0.502)
-const COL_BALL := Color(1.0, 0.333, 0.333)
-const COL_BALL_OUTLINE := Color(0.667, 0.0, 0.0)
-const COL_TEXT := Color(1.0, 1.0, 1.0)
-const COL_BTN := Color(0.0, 0.125, 0.251)
-const COL_BTN_BORDER := Color(0.0, 0.667, 0.667)
-const COL_HIGHLIGHT := Color(1.0, 0.667, 0.667)
-const COL_BAR_BG := Color(0.0, 0.125, 0.125)
+const COL_BG := Color(0.827, 0.827, 0.827)         # #D3D3D3 lightGray (Win3 face)
+const COL_FIELD := Color(0.827, 0.827, 0.827)      # field interior matches bg
+const COL_BORDER := Color(0.663, 0.663, 0.663)     # #A9A9A9 darkGray border
+const COL_WALL := Color(0.722, 0.396, 0.400)       # #B86566 fadedRed completed wall
+const COL_BUILDING := Color(0.467, 0.184, 0.196)   # darker red while growing
+const COL_CAPTURED := Color(0.506, 0.529, 0.871)   # #8187DE fadedBlue capture fill
+const COL_BALL := Color(0.722, 0.396, 0.400)       # red base
+const COL_BALL_PATTERN := Color(1.0, 1.0, 1.0)     # white checker spot
+const COL_BALL_OUTLINE := Color(0.4, 0.18, 0.18)   # dark-red outline
+const COL_TEXT := Color(0.0, 0.0, 0.0)             # black ink on light gray
+const COL_BTN := Color(0.95, 0.95, 0.95)
+const COL_BTN_BORDER := Color(0.4, 0.4, 0.4)
+const COL_BAR_BG := Color(0.7, 0.7, 0.7)
+const COL_BAR_FILL := Color(0.506, 0.529, 0.871)   # progress bar uses fadedBlue too
 
 const BALL_RADIUS := 13.0
 const BALL_SPEED := 240.0
@@ -326,7 +328,7 @@ func _draw_hud() -> void:
 	var bar_y := 130.0
 	draw_rect(Rect2(bar_x, bar_y, bar_w, 16), COL_BAR_BG, true)
 	var fill := bar_w * float(captured) / float(play_total)
-	draw_rect(Rect2(bar_x, bar_y, fill, 16), COL_BORDER, true)
+	draw_rect(Rect2(bar_x, bar_y, fill, 16), COL_BAR_FILL, true)
 	var target_x := bar_x + bar_w * TARGET
 	draw_line(Vector2(target_x, bar_y - 4), Vector2(target_x, bar_y + 20), COL_TEXT, 2)
 
@@ -346,8 +348,13 @@ func _draw_field() -> void:
 	for b in balls:
 		var p: Vector2 = b["pos"]
 		draw_circle(p, BALL_RADIUS + 1, COL_BALL_OUTLINE)
-		draw_circle(p, BALL_RADIUS - 1, COL_BALL)
-		draw_circle(p + Vector2(-4, -4), 3, COL_HIGHLIGHT)
+		draw_circle(p, BALL_RADIUS, COL_BALL)
+		# 4-pole white checker spots — red+white alternation cue from original atom.
+		var r2 := BALL_RADIUS * 0.45
+		draw_circle(p + Vector2(-r2, 0), 3, COL_BALL_PATTERN)
+		draw_circle(p + Vector2(r2, 0), 3, COL_BALL_PATTERN)
+		draw_circle(p + Vector2(0, -r2), 3, COL_BALL_PATTERN)
+		draw_circle(p + Vector2(0, r2), 3, COL_BALL_PATTERN)
 
 func _draw_controls() -> void:
 	draw_rect(Rect2(0, CTRL_Y, FIELD_W, CTRL_H), COL_BG, true)

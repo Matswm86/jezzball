@@ -8,9 +8,10 @@ them. **No ads, no IAP, no analytics, no tracking.**
   <img src="screenshots/inspiration.png" alt="Original JezzBall (Microsoft Entertainment Pack 3, 1992)" width="320"/>
 </p>
 
-The art direction is the EGA palette of the original: black field, cyan
-walls and borders, red atoms, navy capture fill. All graphics are drawn
-procedurally in Godot's `_draw()` (no external assets).
+The art direction is the Windows 3.x UI palette of the 1992 original: light
+gray field, dark gray border, faded-red walls, faded-blue capture fill, and
+red-and-white checker-pattern atoms. All graphics are drawn procedurally in
+Godot's `_draw()` (no external assets).
 
 ## Install on Android
 
@@ -100,12 +101,15 @@ screenshots/
 - Wall growth: 6.5 cells/s (slower than atoms, so timing matters).
 - Capture target: **75%** of the playable area.
 - Lives: `max(3, level + 2)`. 50 levels.
-- Palette (locked):
-  | Element | Color |
-  |---|---|
-  | Background / HUD | `#000000` |
-  | Border + completed wall | `#00aaaa` |
-  | Wall under construction | `#00ffff` |
-  | Captured region | `#000080` |
-  | Atom (red) | `#ff5555`, outline `#aa0000` |
-  | Text | `#ffffff` |
+- Palette (locked, sourced from the original 1992 Win3.x build):
+  | Element | Hex | Notes |
+  |---|---|---|
+  | Field + HUD background | `#D3D3D3` | Win3 face gray |
+  | Border | `#A9A9A9` | dark gray |
+  | Wall (completed) | `#B86566` | "fadedRed" |
+  | Wall (under construction) | `#772F32` | darker red on growing tip |
+  | Captured region + progress bar | `#8187DE` | "fadedBlue" |
+  | Atom base | `#B86566` | red |
+  | Atom checker spots | `#FFFFFF` | white 4-pole pattern |
+  | Atom outline | `#662E2E` | dark red |
+  | Text | `#000000` | black ink |
