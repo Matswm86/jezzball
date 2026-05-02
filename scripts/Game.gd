@@ -68,9 +68,9 @@ var rect_mode: Rect2
 
 # Pending wall touch — finger went down on a field cell. Wall commits on release.
 var pending_active := false
-var pending_pos := Vector2.ZERO
-var pending_cell := Vector2i.ZERO
-var pending_drag_pos := Vector2.ZERO
+var pending_pos: Vector2 = Vector2(0, 0)
+var pending_cell: Vector2i = Vector2i(0, 0)
+var pending_drag_pos: Vector2 = Vector2(0, 0)
 const SWIPE_THRESH := 30.0
 
 func _ready() -> void:
@@ -86,15 +86,20 @@ func _ready() -> void:
 	_build_ui()
 	_start_level(1)
 
-func _make_label(pos: Vector2, w: float, fs: int, halign: int = HORIZONTAL_ALIGNMENT_LEFT, fc: Color = COL_TEXT) -> Label:
+func _make_label(pos: Vector2, w: float, fs: int, halign: int = HORIZONTAL_ALIGNMENT_LEFT) -> Label:
 	var l := Label.new()
 	l.position = pos
 	l.size = Vector2(w, fs * 1.6)
 	l.add_theme_font_size_override("font_size", fs)
-	l.add_theme_color_override("font_color", fc)
+	l.add_theme_color_override("font_color", COL_TEXT)
 	l.horizontal_alignment = halign
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	add_child(l)
+	return l
+
+func _make_label_white(pos: Vector2, w: float, fs: int, halign: int) -> Label:
+	var l := _make_label(pos, w, fs, halign)
+	l.add_theme_color_override("font_color", Color(1, 1, 1))
 	return l
 
 func _build_ui() -> void:
@@ -114,8 +119,8 @@ func _build_ui() -> void:
 	overlay_box.size = Vector2(FIELD_W, 280)
 	overlay_box.visible = false
 	add_child(overlay_box)
-	lbl_overlay_title = _make_label(Vector2(0, FIELD_Y + FIELD_H * 0.30 + 60), FIELD_W, 64, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 1, 1))
-	lbl_overlay_sub = _make_label(Vector2(0, FIELD_Y + FIELD_H * 0.30 + 170), FIELD_W, 36, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 1, 1))
+	lbl_overlay_title = _make_label_white(Vector2(0, FIELD_Y + FIELD_H * 0.30 + 60), FIELD_W, 64, HORIZONTAL_ALIGNMENT_CENTER)
+	lbl_overlay_sub = _make_label_white(Vector2(0, FIELD_Y + FIELD_H * 0.30 + 170), FIELD_W, 36, HORIZONTAL_ALIGNMENT_CENTER)
 	lbl_overlay_title.visible = false
 	lbl_overlay_sub.visible = false
 
