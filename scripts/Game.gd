@@ -1,9 +1,9 @@
 extends Node2D
 
-# DIAGNOSTIC v6 — minimal _ready from v5 (markers only), but file contains every
-# function body from the real game. If markers still show, function definitions
-# are safe and the bug only triggers when one is invoked. If markers vanish,
-# one of the function bodies breaks class-load on the user's Android runtime.
+# DIAGNOSTIC v7 — bisect of v6 (12 functions). v7 keeps 6 functions, removes 6.
+# If markers reappear: bug is in REMOVED set (advance_walls, wall_cell, flood,
+# region_has_ball, update_balls, ball_overlaps_cell).
+# If markers stay missing: bug is in KEPT set.
 
 const COLS := 36
 const ROWS := 56
@@ -63,11 +63,11 @@ var lbl_overlay_sub: Label
 var overlay_box: ColorRect
 
 func _ready() -> void:
-	_diag_rect(0, Color(1, 0, 1), 1580)   # MAGENTA build tag (v6)
-	_diag_rect(0, Color(1, 0, 0), 1820)   # RED
-	_diag_rect(1, Color(0, 1, 0), 1820)   # GREEN
-	_diag_rect(2, Color(0, 0, 1), 1820)   # BLUE
-	_diag_rect(3, Color(1, 1, 0), 1820)   # YELLOW
+	_diag_rect(0, Color(1, 0, 1), 1580)   # MAGENTA build tag (v7)
+	_diag_rect(0, Color(1, 0, 0), 1820)
+	_diag_rect(1, Color(0, 1, 0), 1820)
+	_diag_rect(2, Color(0, 0, 1), 1820)
+	_diag_rect(3, Color(1, 1, 0), 1820)
 
 func _build_ui() -> void:
 	lbl_level = _make_label(Vector2(20, 20), 400, 36)
@@ -148,98 +148,11 @@ func _refresh_ui() -> void:
 	lbl_pct.text = "%d%% / %d%%" % [pct, int(TARGET * 100)]
 	lbl_orient.text = "VERTICAL" if orient_vertical else "HORIZONTAL"
 
-func _advance_walls(delta: float) -> void:
-	for w in walls:
-		for head_key in ["a", "b"]:
-			if w[head_key + "_done"]:
-				continue
-			var prev_int := int(w[head_key])
-			w[head_key] += WALL_SPEED * delta
-			var new_int := int(w[head_key])
-			for i in range(prev_int + 1, new_int + 1):
-				var c: Vector2i = _wall_cell(w, head_key, i)
-				if c.x < 1 or c.x > COLS - 2 or c.y < 1 or c.y > ROWS - 2:
-					w[head_key + "_done"] = true
-					break
-				if grid[c.x][c.y] != CellState.EMPTY:
-					w[head_key + "_done"] = true
-					break
-				grid[c.x][c.y] = CellState.BUILDING
-				w["cells"].append(c)
-
-func _wall_cell(w: Dictionary, head_key: String, dist: int) -> Vector2i:
-	var o: Vector2i = w["origin"]
-	if w["orient"] == "V":
-		return Vector2i(o.x, o.y - dist) if head_key == "a" else Vector2i(o.x, o.y + dist)
-	return Vector2i(o.x - dist, o.y) if head_key == "a" else Vector2i(o.x + dist, o.y)
-
-func _flood(sx: int, sy: int, visited: Array) -> Array:
-	var region := []
-	var stack: Array = [Vector2i(sx, sy)]
-	while stack.size() > 0:
-		var c: Vector2i = stack.pop_back()
-		if c.x < 1 or c.x >= COLS - 1 or c.y < 1 or c.y >= ROWS - 1:
-			continue
-		if visited[c.x][c.y]:
-			continue
-		if grid[c.x][c.y] != CellState.EMPTY:
-			continue
-		visited[c.x][c.y] = true
-		region.append(c)
-		stack.append(Vector2i(c.x + 1, c.y))
-		stack.append(Vector2i(c.x - 1, c.y))
-		stack.append(Vector2i(c.x, c.y + 1))
-		stack.append(Vector2i(c.x, c.y - 1))
-	return region
-
-func _region_has_ball(region: Array) -> bool:
-	for b in balls:
-		var p: Vector2 = b["pos"]
-		var cx := int((p.x - FIELD_X) / CELL)
-		var cy := int((p.y - FIELD_Y) / CELL)
-		for c in region:
-			if c.x == cx and c.y == cy:
-				return true
-	return false
-
-func _update_balls(delta: float) -> void:
-	for b in balls:
-		var pos: Vector2 = b["pos"]
-		var vel: Vector2 = b["vel"]
-		var nx := pos.x + vel.x * delta
-		var probe_x := nx + sign(vel.x) * BALL_RADIUS
-		var px_cell := int((probe_x - FIELD_X) / CELL)
-		var py_cell := int((pos.y - FIELD_Y) / CELL)
-		if _solid_at(px_cell, py_cell):
-			vel.x = -vel.x
-			nx = pos.x + vel.x * delta
-		var ny := pos.y + vel.y * delta
-		var probe_y := ny + sign(vel.y) * BALL_RADIUS
-		var qx_cell := int((pos.x - FIELD_X) / CELL)
-		var qy_cell := int((probe_y - FIELD_Y) / CELL)
-		if _solid_at(qx_cell, qy_cell):
-			vel.y = -vel.y
-			ny = pos.y + vel.y * delta
-		b["pos"] = Vector2(nx, ny)
-		b["vel"] = vel
-
 func _solid_at(cx: int, cy: int) -> bool:
 	if cx < 0 or cx >= COLS or cy < 0 or cy >= ROWS:
 		return true
 	var s = grid[cx][cy]
 	return s == CellState.BORDER or s == CellState.WALL or s == CellState.CAPTURED or s == CellState.BUILDING
-
-func _ball_overlaps_cell(c: Vector2i) -> bool:
-	var cx_px := FIELD_X + c.x * CELL + CELL * 0.5
-	var cy_px := FIELD_Y + c.y * CELL + CELL * 0.5
-	for b in balls:
-		var p: Vector2 = b["pos"]
-		if abs(p.x - cx_px) > CELL * 0.5 + BALL_RADIUS:
-			continue
-		if abs(p.y - cy_px) > CELL * 0.5 + BALL_RADIUS:
-			continue
-		return true
-	return false
 
 func _diag_rect(idx: int, c: Color, y: float) -> void:
 	var r := ColorRect.new()
