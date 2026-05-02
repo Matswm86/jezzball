@@ -45,9 +45,13 @@ var captured := 0
 var play_total := 0
 var state: int = GameState.PLAYING
 var intro_timer := 0.0
+var _font: Font = null
 
 func _ready() -> void:
 	randomize()
+	var sys := SystemFont.new()
+	sys.font_names = PackedStringArray(["sans-serif"])
+	_font = sys
 	_start_level(1)
 
 func _lives_for(n: int) -> int:
@@ -310,7 +314,7 @@ func _draw() -> void:
 func _draw_hud() -> void:
 	draw_rect(Rect2(0, 0, FIELD_W, HUD_H), COL_BG, true)
 	draw_rect(Rect2(0, HUD_H - 4, FIELD_W, 4), COL_BORDER, true)
-	var f := ThemeDB.fallback_font
+	var f := _font
 	var fs := 36
 	var pct := int(round(float(captured) / float(play_total) * 100.0))
 	draw_string(f, Vector2(20, 60), "LEVEL %d" % level, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, COL_TEXT)
@@ -348,7 +352,7 @@ func _draw_field() -> void:
 func _draw_controls() -> void:
 	draw_rect(Rect2(0, CTRL_Y, FIELD_W, CTRL_H), COL_BG, true)
 	draw_rect(Rect2(0, CTRL_Y, FIELD_W, 4), COL_BORDER, true)
-	var f := ThemeDB.fallback_font
+	var f := _font
 	var btn_w := FIELD_W * 0.5 - 20
 	draw_rect(Rect2(10, CTRL_Y + 10, btn_w, CTRL_H - 20), COL_BTN, true)
 	draw_rect(Rect2(10, CTRL_Y + 10, btn_w, CTRL_H - 20), COL_BTN_BORDER, false, 3)
@@ -362,6 +366,6 @@ func _draw_overlay(title: String, sub: String) -> void:
 	var oy := FIELD_Y + FIELD_H * 0.35
 	draw_rect(Rect2(0, oy, FIELD_W, 280), Color(0, 0, 0, 0.85), true)
 	draw_rect(Rect2(0, oy, FIELD_W, 280), COL_BORDER, false, 4)
-	var f := ThemeDB.fallback_font
+	var f := _font
 	draw_string(f, Vector2(0, oy + 100), title, HORIZONTAL_ALIGNMENT_CENTER, FIELD_W, 56, COL_TEXT)
 	draw_string(f, Vector2(0, oy + 190), sub, HORIZONTAL_ALIGNMENT_CENTER, FIELD_W, 36, COL_TEXT)
