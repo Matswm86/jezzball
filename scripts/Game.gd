@@ -14,22 +14,23 @@ const FIELD_Y := HUD_H + CTRL_H        # 290
 const FIELD_W := COLS * CELL           # 1080
 const FIELD_H := ROWS * CELL           # 1500
 
-# Saturated palette closer to the actual Windows 3.x JezzBall look.
-const COL_BG := Color(0.75, 0.75, 0.75)        # Win3 face gray (#BFBFBF)
-const COL_FIELD := Color(0.83, 0.83, 0.83)     # field interior, slightly lighter
-const COL_BORDER := Color(0.20, 0.20, 0.20)    # near-black field border
-const COL_WALL := Color(0.80, 0.12, 0.12)      # saturated RED for completed walls
-const COL_BUILDING := Color(1.00, 0.30, 0.30)  # bright red for the growing tip
-const COL_CAPTURED := Color(0.13, 0.18, 0.78)  # saturated BLUE capture fill
-const COL_CAP_HATCH := Color(0.20, 0.30, 0.95) # lighter blue for hatch lines
-const COL_BALL := Color(0.86, 0.13, 0.13)      # red atom
-const COL_BALL_DOT := Color(1.0, 1.0, 1.0)     # single white highlight
-const COL_BALL_OUTLINE := Color(0.10, 0.0, 0.0)
+# Faded Win3 JezzBall palette using the user-provided hex codes:
+# lightGray #D3D3D3, darkGray #A9A9A9, fadedRed #B86566, fadedBlue #8187DE.
+const COL_BG := Color(0.827, 0.827, 0.827)     # #D3D3D3 lightGray (field + HUD bg)
+const COL_FIELD := Color(0.827, 0.827, 0.827)  # field interior matches bg
+const COL_BORDER := Color(0.663, 0.663, 0.663) # #A9A9A9 darkGray border + grid
+const COL_WALL := Color(0.722, 0.396, 0.400)   # #B86566 fadedRed completed wall
+const COL_BUILDING := Color(0.50, 0.20, 0.20)  # darker red for growing tip
+const COL_CAPTURED := Color(0.506, 0.529, 0.871) # #8187DE fadedBlue capture fill
+const COL_BALL := Color(0.722, 0.396, 0.400)   # red atom matches wall color
+const COL_BALL_DOT := Color(1.0, 1.0, 1.0)     # white checker highlight
+const COL_BALL_OUTLINE := Color(0.20, 0.05, 0.05)
 const COL_TEXT := Color(0.0, 0.0, 0.0)
 const COL_BTN := Color(0.92, 0.92, 0.92)
+const COL_BTN_HL := Color(0.506, 0.529, 0.871) # active button = fadedBlue
 const COL_BTN_PRESSED := Color(0.74, 0.74, 0.74)
-const COL_BTN_BORDER := Color(0.25, 0.25, 0.25)
-const COL_BAR_BG := Color(0.55, 0.55, 0.55)
+const COL_BTN_BORDER := Color(0.30, 0.30, 0.30)
+const COL_BAR_BG := Color(0.66, 0.66, 0.66)
 
 const BALL_RADIUS := 14.0
 const BALL_SPEED := 440.0
@@ -51,32 +52,29 @@ var captured := 0
 var play_total := 0
 var state: int = GameState.PLAYING
 var intro_timer := 0.0
-var btn_toggle_flash := 0.0
 var btn_restart_flash := 0.0
 
 var lbl_level: Label
 var lbl_lives: Label
 var lbl_pct: Label
-var lbl_orient: Label
+var lbl_hint: Label
 var lbl_restart: Label
 var lbl_overlay_title: Label
 var lbl_overlay_sub: Label
 var overlay_box: ColorRect
 
-# Control button rects, computed once in _ready.
-var rect_toggle: Rect2
+# Single RESTART button rect. Wall direction is determined by where in the cell
+# the user taps (top/bottom strip = vertical, left/right strip = horizontal).
 var rect_restart: Rect2
 
 func _ready() -> void:
 	randomize()
-	# Toggle takes 66%, Restart takes 33% of the control row.
+	# Restart button on the right side of the control row.
 	var pad := 12.0
 	var ctrl_top := HUD_H + 8
 	var ctrl_h := CTRL_H - 16
-	var toggle_w := (FIELD_W - 3 * pad) * 0.66
-	var restart_w := (FIELD_W - 3 * pad) - toggle_w
-	rect_toggle = Rect2(pad, ctrl_top, toggle_w, ctrl_h)
-	rect_restart = Rect2(pad + toggle_w + pad, ctrl_top, restart_w, ctrl_h)
+	var btn_w := 320.0
+	rect_restart = Rect2(FIELD_W - btn_w - pad, ctrl_top, btn_w, ctrl_h)
 	_build_ui()
 	_start_level(1)
 
@@ -97,9 +95,10 @@ func _build_ui() -> void:
 	lbl_lives = _make_label(Vector2(FIELD_W - 520, 18), 500, 44, HORIZONTAL_ALIGNMENT_RIGHT)
 	# HUD bottom row: percent text centered above progress bar
 	lbl_pct = _make_label(Vector2(0, 78), FIELD_W, 32, HORIZONTAL_ALIGNMENT_CENTER)
-	# Toggle and restart button labels
-	lbl_orient = _make_label(rect_toggle.position + Vector2(0, 12), rect_toggle.size.x, 48, HORIZONTAL_ALIGNMENT_CENTER)
-	lbl_restart = _make_label(rect_restart.position + Vector2(0, 12), rect_restart.size.x, 40, HORIZONTAL_ALIGNMENT_CENTER)
+	# Hint label across the left of the control row + RESTART button on the right.
+	lbl_hint = _make_label(Vector2(20, HUD_H + 8), FIELD_W - rect_restart.size.x - 60, 30, HORIZONTAL_ALIGNMENT_LEFT)
+	lbl_hint.text = "Tap top/bottom of a cell  ↕   |   left/right of a cell  ↔"
+	lbl_restart = _make_label(rect_restart.position + Vector2(0, 22), rect_restart.size.x, 40, HORIZONTAL_ALIGNMENT_CENTER)
 	lbl_restart.text = "RESTART"
 	# Overlay backdrop + title/sub labels
 	overlay_box = ColorRect.new()
@@ -158,8 +157,6 @@ func _process(delta: float) -> void:
 			_update_balls(delta)
 			_check_wall_hits()
 			_check_win()
-	if btn_toggle_flash > 0.0:
-		btn_toggle_flash = max(0.0, btn_toggle_flash - delta * 4.0)
 	if btn_restart_flash > 0.0:
 		btn_restart_flash = max(0.0, btn_restart_flash - delta * 4.0)
 	_refresh_ui()
@@ -174,7 +171,6 @@ func _refresh_ui() -> void:
 	if play_total > 0:
 		pct = int(round(float(captured) / float(play_total) * 100.0))
 	lbl_pct.text = "%d %% / %d %%" % [pct, int(TARGET * 100)]
-	lbl_orient.text = ("VERTICAL  |" if orient_vertical else "HORIZONTAL  =")
 	var show_overlay := false
 	var t_text := ""
 	var s_text := ""
@@ -375,23 +371,26 @@ func _input(event: InputEvent) -> void:
 		_start_level(level)
 		return
 
-	# Top-mounted control row first.
-	if rect_toggle.has_point(p):
-		orient_vertical = !orient_vertical
-		btn_toggle_flash = 0.25
-		queue_redraw()
-		return
+	# Restart button.
 	if rect_restart.has_point(p):
 		btn_restart_flash = 0.25
 		_start_level(level)
 		return
 
-	# Otherwise treat as a wall-start tap inside the field.
+	# Field tap. Direction comes from WHERE within the cell the finger landed:
+	# - taps in the top or bottom strip of the cell → VERTICAL wall
+	# - taps in the left or right strip of the cell → HORIZONTAL wall
+	# Computed from |dx_from_center| vs |dy_from_center|.
 	if p.y >= FIELD_Y and p.y < FIELD_Y + FIELD_H and p.x >= FIELD_X and p.x < FIELD_X + FIELD_W:
 		var cx := int((p.x - FIELD_X) / CELL)
 		var cy := int((p.y - FIELD_Y) / CELL)
 		if cx >= 1 and cx < COLS - 1 and cy >= 1 and cy < ROWS - 1:
 			if grid[cx][cy] == CellState.EMPTY:
+				var ox := p.x - (FIELD_X + cx * CELL + CELL * 0.5)
+				var oy := p.y - (FIELD_Y + cy * CELL + CELL * 0.5)
+				var ax := ox if ox >= 0.0 else -ox
+				var ay := oy if oy >= 0.0 else -oy
+				orient_vertical = ay >= ax
 				_start_wall(cx, cy)
 
 func _start_wall(cx: int, cy: int) -> void:
@@ -428,15 +427,7 @@ func _draw_hud_chrome() -> void:
 	draw_line(Vector2(target_x, bar_y - 6), Vector2(target_x, bar_y + 28), COL_TEXT, 3)
 
 func _draw_controls() -> void:
-	# Toggle button.
-	var tcol := COL_BTN_PRESSED if btn_toggle_flash > 0.0 else COL_BTN
-	draw_rect(rect_toggle, tcol, true)
-	draw_rect(rect_toggle, COL_BTN_BORDER, false, 4)
-	# Mode-color stripe down the left edge of the button so you can see the
-	# current orientation at a glance even before reading the label.
-	var stripe := Rect2(rect_toggle.position + Vector2(0, 0), Vector2(14, rect_toggle.size.y))
-	draw_rect(stripe, COL_WALL if orient_vertical else COL_CAPTURED, true)
-	# Restart button.
+	# Restart button only — orientation chosen by tap position inside the cell.
 	var rcol := COL_BTN_PRESSED if btn_restart_flash > 0.0 else COL_BTN
 	draw_rect(rect_restart, rcol, true)
 	draw_rect(rect_restart, COL_BTN_BORDER, false, 4)
