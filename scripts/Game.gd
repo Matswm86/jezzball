@@ -3,9 +3,9 @@ extends Node2D
 # JezzBall — mobile remake. Layout v2: controls at TOP (always reachable on
 # any phone), saturated Win3-era palette, faster atoms, simplified atom sprite.
 
-const COLS := 36
-const ROWS := 50
-const CELL := 30.0
+const COLS := 18
+const ROWS := 25
+const CELL := 60.0
 
 const FIELD_X := 0.0
 const HUD_H := 160.0
@@ -14,27 +14,28 @@ const FIELD_Y := HUD_H + CTRL_H        # 290
 const FIELD_W := COLS * CELL           # 1080
 const FIELD_H := ROWS * CELL           # 1500
 
-# Faded Win3 JezzBall palette using the user-provided hex codes:
-# lightGray #D3D3D3, darkGray #A9A9A9, fadedRed #B86566, fadedBlue #8187DE.
-const COL_BG := Color(0.827, 0.827, 0.827)     # #D3D3D3 lightGray (field + HUD bg)
-const COL_FIELD := Color(0.827, 0.827, 0.827)  # field interior matches bg
-const COL_BORDER := Color(0.663, 0.663, 0.663) # #A9A9A9 darkGray border + grid
-const COL_WALL := Color(0.722, 0.396, 0.400)   # #B86566 fadedRed completed wall
-const COL_BUILDING := Color(0.50, 0.20, 0.20)  # darker red for growing tip
-const COL_CAPTURED := Color(0.506, 0.529, 0.871) # #8187DE fadedBlue capture fill
-const COL_BALL := Color(0.722, 0.396, 0.400)   # red atom matches wall color
-const COL_BALL_DOT := Color(1.0, 1.0, 1.0)     # white checker highlight
-const COL_BALL_OUTLINE := Color(0.20, 0.05, 0.05)
-const COL_TEXT := Color(0.0, 0.0, 0.0)
-const COL_BTN := Color(0.92, 0.92, 0.92)
-const COL_BTN_HL := Color(0.506, 0.529, 0.871) # active button = fadedBlue
-const COL_BTN_PRESSED := Color(0.74, 0.74, 0.74)
-const COL_BTN_BORDER := Color(0.30, 0.30, 0.30)
-const COL_BAR_BG := Color(0.66, 0.66, 0.66)
+# Saturated palette taken directly from the inspiration screenshot:
+# black HUD/frame, light gray field with subtle grid, solid red walls,
+# solid blue capture fills, white text, red+white atom.
+const COL_BG := Color(0.0, 0.0, 0.0)           # outer area / HUD background
+const COL_FIELD := Color(0.78, 0.78, 0.78)     # field cell base color (Win3 face)
+const COL_GRID := Color(0.62, 0.62, 0.62)      # grid lines between cells
+const COL_BORDER := Color(0.0, 0.0, 0.0)       # field outer border (black)
+const COL_WALL := Color(0.92, 0.05, 0.05)      # saturated RED for completed wall
+const COL_BUILDING := Color(0.05, 0.05, 0.92)  # saturated BLUE for growing tip
+const COL_CAPTURED := Color(0.05, 0.10, 0.85)  # solid BLUE capture fill
+const COL_BALL := Color(0.94, 0.08, 0.08)      # bright red atom
+const COL_BALL_DOT := Color(1.0, 1.0, 1.0)     # white highlight
+const COL_BALL_OUTLINE := Color(0.30, 0.0, 0.0)
+const COL_TEXT := Color(1.0, 1.0, 1.0)         # white text on black HUD
+const COL_BTN := Color(0.18, 0.18, 0.18)       # dark button on black HUD
+const COL_BTN_PRESSED := Color(0.32, 0.32, 0.32)
+const COL_BTN_BORDER := Color(0.65, 0.65, 0.65)
+const COL_BAR_BG := Color(0.18, 0.18, 0.18)
 
-const BALL_RADIUS := 14.0
-const BALL_SPEED := 440.0
-const WALL_SPEED := 14.0
+const BALL_RADIUS := 22.0
+const BALL_SPEED := 420.0
+const WALL_SPEED := 6.5
 const TARGET := 0.75
 const MAX_LEVEL := 50
 
@@ -95,9 +96,9 @@ func _build_ui() -> void:
 	lbl_lives = _make_label(Vector2(FIELD_W - 520, 18), 500, 44, HORIZONTAL_ALIGNMENT_RIGHT)
 	# HUD bottom row: percent text centered above progress bar
 	lbl_pct = _make_label(Vector2(0, 78), FIELD_W, 32, HORIZONTAL_ALIGNMENT_CENTER)
-	# Hint label across the left of the control row + RESTART button on the right.
-	lbl_hint = _make_label(Vector2(20, HUD_H + 8), FIELD_W - rect_restart.size.x - 60, 30, HORIZONTAL_ALIGNMENT_LEFT)
-	lbl_hint.text = "Tap top/bottom of a cell  ↕   |   left/right of a cell  ↔"
+	# Hint label + RESTART button.
+	lbl_hint = _make_label(Vector2(20, HUD_H + 30), FIELD_W - rect_restart.size.x - 60, 28, HORIZONTAL_ALIGNMENT_LEFT)
+	lbl_hint.text = "Tap top/bottom of cell  ↕      Tap left/right of cell  ↔"
 	lbl_restart = _make_label(rect_restart.position + Vector2(0, 22), rect_restart.size.x, 40, HORIZONTAL_ALIGNMENT_CENTER)
 	lbl_restart.text = "RESTART"
 	# Overlay backdrop + title/sub labels
@@ -386,11 +387,16 @@ func _input(event: InputEvent) -> void:
 		var cy := int((p.y - FIELD_Y) / CELL)
 		if cx >= 1 and cx < COLS - 1 and cy >= 1 and cy < ROWS - 1:
 			if grid[cx][cy] == CellState.EMPTY:
+				# 12-pixel deadzone in the cell center — tapping anywhere in
+				# that zone keeps the previous orientation, so mis-aimed taps
+				# don't randomly flip the wall axis. Outside the deadzone,
+				# the bigger axis wins.
 				var ox := p.x - (FIELD_X + cx * CELL + CELL * 0.5)
 				var oy := p.y - (FIELD_Y + cy * CELL + CELL * 0.5)
 				var ax := ox if ox >= 0.0 else -ox
 				var ay := oy if oy >= 0.0 else -oy
-				orient_vertical = ay >= ax
+				if ax > 12.0 or ay > 12.0:
+					orient_vertical = ay > ax
 				_start_wall(cx, cy)
 
 func _start_wall(cx: int, cy: int) -> void:
@@ -433,16 +439,21 @@ func _draw_controls() -> void:
 	draw_rect(rect_restart, COL_BTN_BORDER, false, 4)
 
 func _draw_field() -> void:
-	# Field interior background (slightly lighter than HUD bg).
+	# Field background — uniform light gray.
 	draw_rect(Rect2(FIELD_X, FIELD_Y, FIELD_W, FIELD_H), COL_FIELD, true)
-	# Captured cells (solid blue with hatch lines for texture).
+	# Subtle grid lines between cells (matches the original screenshot look).
+	for x in range(1, COLS):
+		var lx := FIELD_X + x * CELL
+		draw_line(Vector2(lx, FIELD_Y), Vector2(lx, FIELD_Y + FIELD_H), COL_GRID, 1.0)
+	for y in range(1, ROWS):
+		var ly := FIELD_Y + y * CELL
+		draw_line(Vector2(FIELD_X, ly), Vector2(FIELD_X + FIELD_W, ly), COL_GRID, 1.0)
+	# Captured cells (solid saturated blue).
 	for x in range(1, COLS - 1):
 		for y in range(1, ROWS - 1):
 			if grid[x][y] == CellState.CAPTURED:
-				var px := FIELD_X + x * CELL
-				var py := FIELD_Y + y * CELL
-				draw_rect(Rect2(px, py, CELL, CELL), COL_CAPTURED, true)
-	# Borders + walls + building (single pass over full grid).
+				draw_rect(Rect2(FIELD_X + x * CELL, FIELD_Y + y * CELL, CELL, CELL), COL_CAPTURED, true)
+	# Borders + completed walls (red) + building cells (blue growing tip).
 	for x in COLS:
 		for y in ROWS:
 			var s = grid[x][y]
@@ -452,9 +463,9 @@ func _draw_field() -> void:
 				draw_rect(Rect2(FIELD_X + x * CELL, FIELD_Y + y * CELL, CELL, CELL), COL_WALL, true)
 			elif s == CellState.BUILDING:
 				draw_rect(Rect2(FIELD_X + x * CELL, FIELD_Y + y * CELL, CELL, CELL), COL_BUILDING, true)
-	# Atoms — saturated red disc with single white highlight (Win3 sphere look).
+	# Atoms — bigger now (BALL_RADIUS=22), red disc with white highlight.
 	for b in balls:
 		var p: Vector2 = b["pos"]
-		draw_circle(p, BALL_RADIUS + 1, COL_BALL_OUTLINE)
+		draw_circle(p, BALL_RADIUS + 2, COL_BALL_OUTLINE)
 		draw_circle(p, BALL_RADIUS, COL_BALL)
-		draw_circle(p + Vector2(-BALL_RADIUS * 0.35, -BALL_RADIUS * 0.35), BALL_RADIUS * 0.32, COL_BALL_DOT)
+		draw_circle(p + Vector2(-BALL_RADIUS * 0.35, -BALL_RADIUS * 0.35), BALL_RADIUS * 0.30, COL_BALL_DOT)
