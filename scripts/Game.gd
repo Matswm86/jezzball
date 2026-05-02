@@ -32,8 +32,8 @@ const COL_BTN_BORDER := Color(0.25, 0.25, 0.25)
 const COL_BAR_BG := Color(0.55, 0.55, 0.55)
 
 const BALL_RADIUS := 14.0
-const BALL_SPEED := 320.0
-const WALL_SPEED := 8.0
+const BALL_SPEED := 440.0
+const WALL_SPEED := 14.0
 const TARGET := 0.75
 const MAX_LEVEL := 50
 
@@ -66,6 +66,12 @@ var overlay_box: ColorRect
 # Control button rects, computed once in _ready.
 var rect_toggle: Rect2
 var rect_restart: Rect2
+
+# Gesture state: where finger went down + which cell it landed on.
+var press_x := 0.0
+var press_y := 0.0
+var press_cell_x := -1
+var press_cell_y := -1
 
 func _ready() -> void:
 	randomize()
@@ -306,10 +312,12 @@ func _update_balls(delta: float) -> void:
 		b["vel"] = vel
 
 func _solid_at(cx: int, cy: int) -> bool:
+	# Building walls are NOT solid — balls pass into them so _check_wall_hits
+	# can destroy the wall and dock a life. Only completed walls bounce balls.
 	if cx < 0 or cx >= COLS or cy < 0 or cy >= ROWS:
 		return true
 	var s = grid[cx][cy]
-	return s == CellState.BORDER or s == CellState.WALL or s == CellState.CAPTURED or s == CellState.BUILDING
+	return s == CellState.BORDER or s == CellState.WALL or s == CellState.CAPTURED
 
 func _check_wall_hits() -> void:
 	var to_destroy := []
@@ -359,38 +367,53 @@ func _input(event: InputEvent) -> void:
 		p = event.position
 	else:
 		return
-	if not pressed:
+
+	if pressed:
+		# End-of-level overlays consume the tap.
+		if state == GameState.LEVEL_WIN:
+			var nxt := level + 1
+			if nxt > MAX_LEVEL:
+				nxt = 1
+			_start_level(nxt)
+			return
+		if state == GameState.LEVEL_LOSE:
+			_start_level(level)
+			return
+		# Toggle button still works as a backup (one-tap on it flips orient).
+		if rect_toggle.has_point(p):
+			orient_vertical = !orient_vertical
+			btn_toggle_flash = 0.25
+			queue_redraw()
+			press_cell_x = -1
+			return
+		if rect_restart.has_point(p):
+			btn_restart_flash = 0.25
+			_start_level(level)
+			press_cell_x = -1
+			return
+		# Field tap — record position + cell, but DO NOT start the wall yet.
+		press_cell_x = -1
+		if p.y >= FIELD_Y and p.y < FIELD_Y + FIELD_H and p.x >= FIELD_X and p.x < FIELD_X + FIELD_W:
+			var cx := int((p.x - FIELD_X) / CELL)
+			var cy := int((p.y - FIELD_Y) / CELL)
+			if cx >= 1 and cx < COLS - 1 and cy >= 1 and cy < ROWS - 1 and grid[cx][cy] == CellState.EMPTY:
+				press_x = p.x
+				press_y = p.y
+				press_cell_x = cx
+				press_cell_y = cy
 		return
 
-	# End-of-level overlays consume the tap regardless of where it lands.
-	if state == GameState.LEVEL_WIN:
-		var nxt := level + 1
-		if nxt > MAX_LEVEL:
-			nxt = 1
-		_start_level(nxt)
+	# RELEASED: if we have a pending field-press, decide direction from the
+	# swipe delta, then commit the wall at the originally-tapped cell.
+	if press_cell_x < 0:
 		return
-	if state == GameState.LEVEL_LOSE:
-		_start_level(level)
-		return
-
-	# Top-mounted control row first.
-	if rect_toggle.has_point(p):
-		orient_vertical = !orient_vertical
-		btn_toggle_flash = 0.25
-		queue_redraw()
-		return
-	if rect_restart.has_point(p):
-		btn_restart_flash = 0.25
-		_start_level(level)
-		return
-
-	# Otherwise treat as a wall-start tap inside the field.
-	if p.y >= FIELD_Y and p.y < FIELD_Y + FIELD_H and p.x >= FIELD_X and p.x < FIELD_X + FIELD_W:
-		var cx := int((p.x - FIELD_X) / CELL)
-		var cy := int((p.y - FIELD_Y) / CELL)
-		if cx >= 1 and cx < COLS - 1 and cy >= 1 and cy < ROWS - 1:
-			if grid[cx][cy] == CellState.EMPTY:
-				_start_wall(cx, cy)
+	var dx := abs(p.x - press_x)
+	var dy := abs(p.y - press_y)
+	if dx > 30.0 or dy > 30.0:
+		orient_vertical = dy >= dx
+	if grid[press_cell_x][press_cell_y] == CellState.EMPTY:
+		_start_wall(press_cell_x, press_cell_y)
+	press_cell_x = -1
 
 func _start_wall(cx: int, cy: int) -> void:
 	var w := {
