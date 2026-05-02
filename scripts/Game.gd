@@ -47,14 +47,52 @@ var captured := 0
 var play_total := 0
 var state: int = GameState.PLAYING
 var intro_timer := 0.0
-var _font: Font = null
+
+var lbl_level: Label
+var lbl_lives: Label
+var lbl_pct: Label
+var lbl_orient: Label
+var lbl_restart: Label
+var lbl_overlay_title: Label
+var lbl_overlay_sub: Label
+var overlay_box: ColorRect
 
 func _ready() -> void:
 	randomize()
-	var sys := SystemFont.new()
-	sys.font_names = PackedStringArray(["sans-serif"])
-	_font = sys
+	_build_ui()
 	_start_level(1)
+
+func _make_label(pos: Vector2, w: float, fs: int, halign: int = HORIZONTAL_ALIGNMENT_LEFT) -> Label:
+	var l := Label.new()
+	l.position = pos
+	l.size = Vector2(w, fs * 1.6)
+	l.add_theme_font_size_override("font_size", fs)
+	l.add_theme_color_override("font_color", COL_TEXT)
+	l.horizontal_alignment = halign
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	add_child(l)
+	return l
+
+func _build_ui() -> void:
+	lbl_level = _make_label(Vector2(20, 20), 400, 36)
+	lbl_lives = _make_label(Vector2(20, 70), 400, 36)
+	lbl_pct = _make_label(Vector2(FIELD_W - 420, 20), 400, 36, HORIZONTAL_ALIGNMENT_RIGHT)
+	var btn_w := FIELD_W * 0.5 - 20
+	lbl_orient = _make_label(Vector2(10, CTRL_Y + 10), btn_w, 30, HORIZONTAL_ALIGNMENT_CENTER)
+	lbl_restart = _make_label(Vector2(FIELD_W * 0.5 + 10, CTRL_Y + 10), btn_w, 30, HORIZONTAL_ALIGNMENT_CENTER)
+	lbl_restart.text = "RESTART"
+	overlay_box = ColorRect.new()
+	overlay_box.color = Color(0, 0, 0, 0.78)
+	overlay_box.position = Vector2(0, FIELD_Y + FIELD_H * 0.35)
+	overlay_box.size = Vector2(FIELD_W, 280)
+	overlay_box.visible = false
+	add_child(overlay_box)
+	lbl_overlay_title = _make_label(Vector2(0, FIELD_Y + FIELD_H * 0.35 + 60), FIELD_W, 56, HORIZONTAL_ALIGNMENT_CENTER)
+	lbl_overlay_title.add_theme_color_override("font_color", Color(1, 1, 1))
+	lbl_overlay_sub = _make_label(Vector2(0, FIELD_Y + FIELD_H * 0.35 + 160), FIELD_W, 36, HORIZONTAL_ALIGNMENT_CENTER)
+	lbl_overlay_sub.add_theme_color_override("font_color", Color(1, 1, 1))
+	lbl_overlay_title.visible = false
+	lbl_overlay_sub.visible = false
 
 func _lives_for(n: int) -> int:
 	return max(3, n + 2)
@@ -101,7 +139,40 @@ func _process(delta: float) -> void:
 			_update_balls(delta)
 			_check_wall_hits()
 			_check_win()
+	_refresh_ui()
 	queue_redraw()
+
+func _refresh_ui() -> void:
+	if lbl_level == null:
+		return
+	lbl_level.text = "LEVEL %d" % level
+	lbl_lives.text = "LIVES %d" % lives
+	var pct := 0
+	if play_total > 0:
+		pct = int(round(float(captured) / float(play_total) * 100.0))
+	lbl_pct.text = "%d%% / %d%%" % [pct, int(TARGET * 100)]
+	lbl_orient.text = "VERTICAL" if orient_vertical else "HORIZONTAL"
+	var show_overlay := false
+	var t_text := ""
+	var s_text := ""
+	if state == GameState.PLAYING and intro_timer > 0.0:
+		show_overlay = true
+		t_text = "LEVEL %d" % level
+		s_text = "%d ball%s   %d lives" % [level, "" if level == 1 else "s", lives]
+	elif state == GameState.LEVEL_WIN:
+		show_overlay = true
+		t_text = "LEVEL CLEARED"
+		s_text = "Tap to advance"
+	elif state == GameState.LEVEL_LOSE:
+		show_overlay = true
+		t_text = "OUT OF LIVES"
+		s_text = "Tap to retry"
+	overlay_box.visible = show_overlay
+	lbl_overlay_title.visible = show_overlay
+	lbl_overlay_sub.visible = show_overlay
+	if show_overlay:
+		lbl_overlay_title.text = t_text
+		lbl_overlay_sub.text = s_text
 
 func _advance_walls(delta: float) -> void:
 	for w in walls:
@@ -306,28 +377,17 @@ func _draw() -> void:
 	_draw_hud()
 	_draw_field()
 	_draw_controls()
-	if intro_timer > 0.0 and state == GameState.PLAYING:
-		_draw_overlay("LEVEL %d" % level, "%d ball%s   %d lives" % [level, "" if level == 1 else "s", lives])
-	elif state == GameState.LEVEL_WIN:
-		_draw_overlay("LEVEL CLEARED", "Tap to advance")
-	elif state == GameState.LEVEL_LOSE:
-		_draw_overlay("OUT OF LIVES", "Tap to retry")
 
 func _draw_hud() -> void:
 	draw_rect(Rect2(0, 0, FIELD_W, HUD_H), COL_BG, true)
 	draw_rect(Rect2(0, HUD_H - 4, FIELD_W, 4), COL_BORDER, true)
-	var f := _font
-	var fs := 36
-	var pct := int(round(float(captured) / float(play_total) * 100.0))
-	draw_string(f, Vector2(20, 60), "LEVEL %d" % level, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, COL_TEXT)
-	draw_string(f, Vector2(20, 110), "LIVES %d" % lives, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, COL_TEXT)
-	var pct_text := "%d%% / %d%%" % [pct, int(TARGET * 100)]
-	draw_string(f, Vector2(FIELD_W - 380, 60), pct_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, COL_TEXT)
 	var bar_w := FIELD_W - 40
 	var bar_x := 20.0
 	var bar_y := 130.0
 	draw_rect(Rect2(bar_x, bar_y, bar_w, 16), COL_BAR_BG, true)
-	var fill := bar_w * float(captured) / float(play_total)
+	var fill := 0.0
+	if play_total > 0:
+		fill = bar_w * float(captured) / float(play_total)
 	draw_rect(Rect2(bar_x, bar_y, fill, 16), COL_BAR_FILL, true)
 	var target_x := bar_x + bar_w * TARGET
 	draw_line(Vector2(target_x, bar_y - 4), Vector2(target_x, bar_y + 20), COL_TEXT, 2)
@@ -359,20 +419,8 @@ func _draw_field() -> void:
 func _draw_controls() -> void:
 	draw_rect(Rect2(0, CTRL_Y, FIELD_W, CTRL_H), COL_BG, true)
 	draw_rect(Rect2(0, CTRL_Y, FIELD_W, 4), COL_BORDER, true)
-	var f := _font
 	var btn_w := FIELD_W * 0.5 - 20
 	draw_rect(Rect2(10, CTRL_Y + 10, btn_w, CTRL_H - 20), COL_BTN, true)
 	draw_rect(Rect2(10, CTRL_Y + 10, btn_w, CTRL_H - 20), COL_BTN_BORDER, false, 3)
-	var label := "VERTICAL" if orient_vertical else "HORIZONTAL"
-	draw_string(f, Vector2(10, CTRL_Y + 50), label, HORIZONTAL_ALIGNMENT_CENTER, btn_w, 30, COL_TEXT)
 	draw_rect(Rect2(FIELD_W * 0.5 + 10, CTRL_Y + 10, btn_w, CTRL_H - 20), COL_BTN, true)
 	draw_rect(Rect2(FIELD_W * 0.5 + 10, CTRL_Y + 10, btn_w, CTRL_H - 20), COL_BTN_BORDER, false, 3)
-	draw_string(f, Vector2(FIELD_W * 0.5 + 10, CTRL_Y + 50), "RESTART", HORIZONTAL_ALIGNMENT_CENTER, btn_w, 30, COL_TEXT)
-
-func _draw_overlay(title: String, sub: String) -> void:
-	var oy := FIELD_Y + FIELD_H * 0.35
-	draw_rect(Rect2(0, oy, FIELD_W, 280), Color(0, 0, 0, 0.85), true)
-	draw_rect(Rect2(0, oy, FIELD_W, 280), COL_BORDER, false, 4)
-	var f := _font
-	draw_string(f, Vector2(0, oy + 100), title, HORIZONTAL_ALIGNMENT_CENTER, FIELD_W, 56, COL_TEXT)
-	draw_string(f, Vector2(0, oy + 190), sub, HORIZONTAL_ALIGNMENT_CENTER, FIELD_W, 36, COL_TEXT)
