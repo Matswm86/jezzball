@@ -16,7 +16,7 @@ Godot's `_draw()` (no external assets).
 ## Install on Android
 
 **Direct APK download:**
-https://github.com/Matswm86/jezzball/releases/download/latest/jezzball.apk
+https://github.com/Matswm86/jezzball/releases/download/latest/jezzball-fresh.apk
 
 1. Open that link in your phone's browser and tap to download.
 2. When you tap the downloaded file, Android may say *"For your security, your
@@ -67,7 +67,7 @@ Every push to `main` triggers `.github/workflows/build-android.yml`, which:
    secret (falls back to an ephemeral keystore if the secret isn't set, so
    forks still build).
 4. Writes `editor_settings-4.6.tres` and the build template marker files.
-5. Runs `godot --headless --export-debug "Android" jezzball.apk`.
+5. Runs `godot --headless --export-debug "Android" jezzball-fresh.apk`.
 6. Uploads the APK as a workflow artifact, **and** updates the rolling
    `latest` pre-release on the Releases page.
 
