@@ -10,29 +10,29 @@ const CELL := 60.0
 const FIELD_X := 0.0
 const HUD_H := 160.0
 const CTRL_H := 130.0
-const FIELD_Y := HUD_H + CTRL_H        # 290
-const FIELD_W := COLS * CELL           # 1080
-const FIELD_H := ROWS * CELL           # 1500
+const FIELD_Y := HUD_H + CTRL_H  # 290
+const FIELD_W := COLS * CELL  # 1080
+const FIELD_H := ROWS * CELL  # 1500
 
 # Mostly-gray palette with small red/blue accents — closer to the original
 # Win3 game's overall feel (gray field dominates; walls and captures are
 # muted, not loud).
-const COL_BG := Color(0.0, 0.0, 0.0)           # outer area / HUD background
-const COL_FIELD := Color(0.80, 0.80, 0.80)     # field cell base color
-const COL_GRID := Color(0.62, 0.62, 0.62)      # grid lines between cells
-const COL_BORDER := Color(0.10, 0.10, 0.10)    # field outer border
-const COL_WALL := Color(0.55, 0.10, 0.10)      # muted dark red completed wall
+const COL_BG := Color(0.0, 0.0, 0.0)  # outer area / HUD background
+const COL_FIELD := Color(0.80, 0.80, 0.80)  # field cell base color
+const COL_GRID := Color(0.62, 0.62, 0.62)  # grid lines between cells
+const COL_BORDER := Color(0.10, 0.10, 0.10)  # field outer border
+const COL_WALL := Color(0.55, 0.10, 0.10)  # muted dark red completed wall
 const COL_BUILDING := Color(0.78, 0.18, 0.18)  # slightly brighter red tip
 const COL_CAPTURED := Color(0.42, 0.46, 0.62)  # muted blue-gray capture fill
-const COL_BALL := Color(0.65, 0.12, 0.12)      # red atom (not bright)
-const COL_BALL_DOT := Color(1.0, 1.0, 1.0)     # white highlight
+const COL_BALL := Color(0.65, 0.12, 0.12)  # red atom (not bright)
+const COL_BALL_DOT := Color(1.0, 1.0, 1.0)  # white highlight
 const COL_BALL_OUTLINE := Color(0.25, 0.0, 0.0)
-const COL_TEXT := Color(1.0, 1.0, 1.0)         # white text on black HUD
-const COL_BTN := Color(0.18, 0.18, 0.18)       # dark button on black HUD
+const COL_TEXT := Color(1.0, 1.0, 1.0)  # white text on black HUD
+const COL_BTN := Color(0.18, 0.18, 0.18)  # dark button on black HUD
 const COL_BTN_PRESSED := Color(0.32, 0.32, 0.32)
 const COL_BTN_BORDER := Color(0.65, 0.65, 0.65)
 const COL_BAR_BG := Color(0.18, 0.18, 0.18)
-const COL_PREVIEW := Color(0.95, 0.95, 0.95, 0.5) # touch-preview line on field
+const COL_PREVIEW := Color(0.95, 0.95, 0.95, 0.5)  # touch-preview line on field
 
 const BALL_RADIUS := 22.0
 const BALL_SPEED := 380.0
@@ -77,6 +77,7 @@ var anchor_y := 0.0
 var anchor_cx := -1
 var anchor_cy := -1
 
+
 func _ready() -> void:
 	randomize()
 	# Restart button on the right side of the control row.
@@ -88,7 +89,10 @@ func _ready() -> void:
 	_build_ui()
 	_start_level(1)
 
-func _make_label(pos: Vector2, w: float, fs: int, halign: int = HORIZONTAL_ALIGNMENT_LEFT, fc: Color = COL_TEXT) -> Label:
+
+func _make_label(
+	pos: Vector2, w: float, fs: int, halign: int = HORIZONTAL_ALIGNMENT_LEFT, fc: Color = COL_TEXT
+) -> Label:
 	var l := Label.new()
 	l.position = pos
 	l.size = Vector2(w, fs * 1.6)
@@ -99,6 +103,7 @@ func _make_label(pos: Vector2, w: float, fs: int, halign: int = HORIZONTAL_ALIGN
 	add_child(l)
 	return l
 
+
 func _build_ui() -> void:
 	# HUD top row: LEVEL X | LIVES X
 	lbl_level = _make_label(Vector2(20, 18), 500, 44)
@@ -106,9 +111,13 @@ func _build_ui() -> void:
 	# HUD bottom row: percent text centered above progress bar
 	lbl_pct = _make_label(Vector2(0, 78), FIELD_W, 32, HORIZONTAL_ALIGNMENT_CENTER)
 	# Hint label + RESTART button.
-	lbl_hint = _make_label(Vector2(20, HUD_H + 30), FIELD_W - rect_restart.size.x - 60, 28, HORIZONTAL_ALIGNMENT_LEFT)
+	lbl_hint = _make_label(
+		Vector2(20, HUD_H + 30), FIELD_W - rect_restart.size.x - 60, 28, HORIZONTAL_ALIGNMENT_LEFT
+	)
 	lbl_hint.text = "Press a cell, swipe up/down for ↕  or  left/right for ↔"
-	lbl_restart = _make_label(rect_restart.position + Vector2(0, 22), rect_restart.size.x, 40, HORIZONTAL_ALIGNMENT_CENTER)
+	lbl_restart = _make_label(
+		rect_restart.position + Vector2(0, 22), rect_restart.size.x, 40, HORIZONTAL_ALIGNMENT_CENTER
+	)
 	lbl_restart.text = "RESTART"
 	# Overlay backdrop + title/sub labels
 	overlay_box = ColorRect.new()
@@ -117,13 +126,27 @@ func _build_ui() -> void:
 	overlay_box.size = Vector2(FIELD_W, 280)
 	overlay_box.visible = false
 	add_child(overlay_box)
-	lbl_overlay_title = _make_label(Vector2(0, FIELD_Y + FIELD_H * 0.30 + 60), FIELD_W, 64, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 1, 1))
-	lbl_overlay_sub = _make_label(Vector2(0, FIELD_Y + FIELD_H * 0.30 + 170), FIELD_W, 36, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 1, 1))
+	lbl_overlay_title = _make_label(
+		Vector2(0, FIELD_Y + FIELD_H * 0.30 + 60),
+		FIELD_W,
+		64,
+		HORIZONTAL_ALIGNMENT_CENTER,
+		Color(1, 1, 1)
+	)
+	lbl_overlay_sub = _make_label(
+		Vector2(0, FIELD_Y + FIELD_H * 0.30 + 170),
+		FIELD_W,
+		36,
+		HORIZONTAL_ALIGNMENT_CENTER,
+		Color(1, 1, 1)
+	)
 	lbl_overlay_title.visible = false
 	lbl_overlay_sub.visible = false
 
+
 func _lives_for(n: int) -> int:
 	return max(3, n + 2)
+
 
 func _start_level(n: int) -> void:
 	level = clamp(n, 1, MAX_LEVEL)
@@ -137,6 +160,7 @@ func _start_level(n: int) -> void:
 	intro_timer = 1.0
 	queue_redraw()
 
+
 func _init_grid() -> void:
 	grid = []
 	grid.resize(COLS)
@@ -144,9 +168,14 @@ func _init_grid() -> void:
 		var col := []
 		col.resize(ROWS)
 		for y in ROWS:
-			col[y] = CellState.BORDER if (x == 0 or x == COLS - 1 or y == 0 or y == ROWS - 1) else CellState.EMPTY
+			col[y] = (
+				CellState.BORDER
+				if (x == 0 or x == COLS - 1 or y == 0 or y == ROWS - 1)
+				else CellState.EMPTY
+			)
 		grid[x] = col
 	play_total = (COLS - 2) * (ROWS - 2)
+
 
 func _spawn_balls(count: int) -> void:
 	for i in count:
@@ -157,6 +186,7 @@ func _spawn_balls(count: int) -> void:
 		var sy := 1.0 if randi() % 2 == 0 else -1.0
 		var inv := 1.0 / sqrt(2.0)
 		balls.append({"pos": Vector2(px, py), "vel": Vector2(sx * sp * inv, sy * sp * inv)})
+
 
 func _process(delta: float) -> void:
 	if state == GameState.PLAYING:
@@ -171,6 +201,7 @@ func _process(delta: float) -> void:
 		btn_restart_flash = max(0.0, btn_restart_flash - delta * 4.0)
 	_refresh_ui()
 	queue_redraw()
+
 
 func _refresh_ui() -> void:
 	if lbl_level == null:
@@ -203,6 +234,7 @@ func _refresh_ui() -> void:
 		lbl_overlay_title.text = t_text
 		lbl_overlay_sub.text = s_text
 
+
 func _advance_walls(delta: float) -> void:
 	for w in walls:
 		for head_key in ["a", "b"]:
@@ -229,16 +261,19 @@ func _advance_walls(delta: float) -> void:
 		_complete_wall(w)
 		walls.erase(w)
 
+
 func _wall_cell(w: Dictionary, head_key: String, dist: int) -> Vector2i:
 	var o: Vector2i = w["origin"]
 	if w["orient"] == "V":
 		return Vector2i(o.x, o.y - dist) if head_key == "a" else Vector2i(o.x, o.y + dist)
 	return Vector2i(o.x - dist, o.y) if head_key == "a" else Vector2i(o.x + dist, o.y)
 
+
 func _complete_wall(w: Dictionary) -> void:
 	for c in w["cells"]:
 		grid[c.x][c.y] = CellState.WALL
 	_flood_capture()
+
 
 func _flood_capture() -> void:
 	var visited := []
@@ -256,6 +291,7 @@ func _flood_capture() -> void:
 					for c in region:
 						grid[c.x][c.y] = CellState.CAPTURED
 						captured += 1
+
 
 func _flood(sx: int, sy: int, visited: Array) -> Array:
 	var region := []
@@ -276,6 +312,7 @@ func _flood(sx: int, sy: int, visited: Array) -> Array:
 		stack.append(Vector2i(c.x, c.y - 1))
 	return region
 
+
 func _region_has_ball(region: Array) -> bool:
 	for b in balls:
 		var p: Vector2 = b["pos"]
@@ -285,6 +322,7 @@ func _region_has_ball(region: Array) -> bool:
 			if c.x == cx and c.y == cy:
 				return true
 	return false
+
 
 func _update_balls(delta: float) -> void:
 	# Avoid the global sign(): its Variant overload breaks class-load on
@@ -311,6 +349,7 @@ func _update_balls(delta: float) -> void:
 		b["pos"] = Vector2(nx, ny)
 		b["vel"] = vel
 
+
 func _solid_at(cx: int, cy: int) -> bool:
 	if cx < 0 or cx >= COLS or cy < 0 or cy >= ROWS:
 		return true
@@ -318,6 +357,7 @@ func _solid_at(cx: int, cy: int) -> bool:
 	# BUILDING cells are NOT solid: balls pass into them so _check_wall_hits
 	# can destroy the wall and dock a life. Only BORDER/WALL/CAPTURED bounce.
 	return s == CellState.BORDER or s == CellState.WALL or s == CellState.CAPTURED
+
 
 func _check_wall_hits() -> void:
 	var to_destroy := []
@@ -334,6 +374,7 @@ func _check_wall_hits() -> void:
 				state = GameState.LEVEL_LOSE
 				return
 
+
 func _ball_overlaps_cell(c: Vector2i) -> bool:
 	var cx_px := FIELD_X + c.x * CELL + CELL * 0.5
 	var cy_px := FIELD_Y + c.y * CELL + CELL * 0.5
@@ -346,11 +387,13 @@ func _ball_overlaps_cell(c: Vector2i) -> bool:
 		return true
 	return false
 
+
 func _destroy_wall(w: Dictionary) -> void:
 	for c in w["cells"]:
 		if grid[c.x][c.y] == CellState.BUILDING:
 			grid[c.x][c.y] = CellState.EMPTY
 	walls.erase(w)
+
 
 func _filled_count() -> int:
 	# Cells that count as "yours": completed walls + captured regions.
@@ -362,9 +405,11 @@ func _filled_count() -> int:
 				n += 1
 	return n
 
+
 func _check_win() -> void:
 	if float(_filled_count()) / float(play_total) >= TARGET:
 		state = GameState.LEVEL_WIN
+
 
 func _input(event: InputEvent) -> void:
 	var pressed := false
@@ -396,10 +441,21 @@ func _input(event: InputEvent) -> void:
 			return
 		# Field tap → record anchor; wall commits on release.
 		anchor_cx = -1
-		if p.y >= FIELD_Y and p.y < FIELD_Y + FIELD_H and p.x >= FIELD_X and p.x < FIELD_X + FIELD_W:
+		if (
+			p.y >= FIELD_Y
+			and p.y < FIELD_Y + FIELD_H
+			and p.x >= FIELD_X
+			and p.x < FIELD_X + FIELD_W
+		):
 			var cx := int((p.x - FIELD_X) / CELL)
 			var cy := int((p.y - FIELD_Y) / CELL)
-			if cx >= 1 and cx < COLS - 1 and cy >= 1 and cy < ROWS - 1 and grid[cx][cy] == CellState.EMPTY:
+			if (
+				cx >= 1
+				and cx < COLS - 1
+				and cy >= 1
+				and cy < ROWS - 1
+				and grid[cx][cy] == CellState.EMPTY
+			):
 				anchor_x = p.x
 				anchor_y = p.y
 				anchor_cx = cx
@@ -422,6 +478,7 @@ func _input(event: InputEvent) -> void:
 		_start_wall(anchor_cx, anchor_cy)
 	anchor_cx = -1
 
+
 func _start_wall(cx: int, cy: int) -> void:
 	var w := {
 		"origin": Vector2i(cx, cy),
@@ -435,12 +492,14 @@ func _start_wall(cx: int, cy: int) -> void:
 	grid[cx][cy] = CellState.BUILDING
 	walls.append(w)
 
+
 func _draw() -> void:
 	# Bottom edge below the field is the same gray as the HUD background.
 	draw_rect(Rect2(0, 0, FIELD_W, 1920), COL_BG, true)
 	_draw_hud_chrome()
 	_draw_controls()
 	_draw_field()
+
 
 func _draw_hud_chrome() -> void:
 	# Progress bar inside HUD.
@@ -455,11 +514,13 @@ func _draw_hud_chrome() -> void:
 	var target_x := bar_x + bar_w * TARGET
 	draw_line(Vector2(target_x, bar_y - 6), Vector2(target_x, bar_y + 28), COL_TEXT, 3)
 
+
 func _draw_controls() -> void:
 	# Restart button only — orientation chosen by tap position inside the cell.
 	var rcol := COL_BTN_PRESSED if btn_restart_flash > 0.0 else COL_BTN
 	draw_rect(rect_restart, rcol, true)
 	draw_rect(rect_restart, COL_BTN_BORDER, false, 4)
+
 
 func _draw_field() -> void:
 	# Field background — uniform light gray.
@@ -475,30 +536,48 @@ func _draw_field() -> void:
 	for x in range(1, COLS - 1):
 		for y in range(1, ROWS - 1):
 			if grid[x][y] == CellState.CAPTURED:
-				draw_rect(Rect2(FIELD_X + x * CELL, FIELD_Y + y * CELL, CELL, CELL), COL_CAPTURED, true)
+				draw_rect(
+					Rect2(FIELD_X + x * CELL, FIELD_Y + y * CELL, CELL, CELL), COL_CAPTURED, true
+				)
 	# Borders + completed walls (red) + building cells (blue growing tip).
 	for x in COLS:
 		for y in ROWS:
 			var s = grid[x][y]
 			if s == CellState.BORDER:
-				draw_rect(Rect2(FIELD_X + x * CELL, FIELD_Y + y * CELL, CELL, CELL), COL_BORDER, true)
+				draw_rect(
+					Rect2(FIELD_X + x * CELL, FIELD_Y + y * CELL, CELL, CELL), COL_BORDER, true
+				)
 			elif s == CellState.WALL:
 				draw_rect(Rect2(FIELD_X + x * CELL, FIELD_Y + y * CELL, CELL, CELL), COL_WALL, true)
 			elif s == CellState.BUILDING:
-				draw_rect(Rect2(FIELD_X + x * CELL, FIELD_Y + y * CELL, CELL, CELL), COL_BUILDING, true)
+				draw_rect(
+					Rect2(FIELD_X + x * CELL, FIELD_Y + y * CELL, CELL, CELL), COL_BUILDING, true
+				)
 	# Atoms — bigger now (BALL_RADIUS=22), red disc with white highlight.
 	for b in balls:
 		var p: Vector2 = b["pos"]
 		draw_circle(p, BALL_RADIUS + 2, COL_BALL_OUTLINE)
 		draw_circle(p, BALL_RADIUS, COL_BALL)
-		draw_circle(p + Vector2(-BALL_RADIUS * 0.35, -BALL_RADIUS * 0.35), BALL_RADIUS * 0.30, COL_BALL_DOT)
+		draw_circle(
+			p + Vector2(-BALL_RADIUS * 0.35, -BALL_RADIUS * 0.35), BALL_RADIUS * 0.30, COL_BALL_DOT
+		)
 	# Swipe preview while finger is down on a valid cell — semi-transparent
 	# guide line through the anchor cell in the orientation the wall WILL take.
 	if anchor_cx >= 0:
 		var ax_px := FIELD_X + anchor_cx * CELL + CELL * 0.5
 		var ay_px := FIELD_Y + anchor_cy * CELL + CELL * 0.5
 		if orient_vertical:
-			draw_line(Vector2(ax_px, FIELD_Y + CELL), Vector2(ax_px, FIELD_Y + FIELD_H - CELL), COL_PREVIEW, 4)
+			draw_line(
+				Vector2(ax_px, FIELD_Y + CELL),
+				Vector2(ax_px, FIELD_Y + FIELD_H - CELL),
+				COL_PREVIEW,
+				4
+			)
 		else:
-			draw_line(Vector2(FIELD_X + CELL, ay_px), Vector2(FIELD_X + FIELD_W - CELL, ay_px), COL_PREVIEW, 4)
+			draw_line(
+				Vector2(FIELD_X + CELL, ay_px),
+				Vector2(FIELD_X + FIELD_W - CELL, ay_px),
+				COL_PREVIEW,
+				4
+			)
 		draw_circle(Vector2(ax_px, ay_px), 8, Color(1, 1, 1, 0.6))
