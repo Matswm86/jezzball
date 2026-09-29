@@ -1,17 +1,17 @@
 # JezzBall
 
 Faithful Android remake of the 1992 Microsoft Entertainment Pack 3 classic.
-Cap off 75% of the field by drawing walls while bouncing atoms try to break
+Cap off 70% of the field by drawing walls while bouncing atoms try to break
 them. **No ads, no IAP, no analytics, no tracking.**
 
 <p align="center">
   <img src="screenshots/inspiration.png" alt="Original JezzBall (Microsoft Entertainment Pack 3, 1992)" width="320"/>
 </p>
 
-The art direction is the Windows 3.x UI palette of the 1992 original: light
-gray field, dark gray border, faded-red walls, faded-blue capture fill, and
-red-and-white checker-pattern atoms. All graphics are drawn procedurally in
-Godot's `_draw()` (no external assets).
+The art direction borrows the Windows 3.x look of the 1992 original: a light
+gray field with grid lines, muted dark-red walls, a muted blue-gray capture
+fill, and red atoms with a white highlight, under a black HUD. All graphics are
+drawn procedurally in Godot's `_draw()` (no external assets).
 
 ## Install on Android
 
@@ -34,20 +34,26 @@ Permanent versioned downloads are also published to the
 
 ## How to play
 
-- Tap the **VERTICAL** / **HORIZONTAL** button (bottom-left) to choose the
-  build orientation.
-- Tap inside the field. A wall starts at your tap and grows in two
-  directions until each end either hits an existing wall or finishes.
+- Press a cell in the field and swipe up/down for a **vertical** wall or
+  left/right for a **horizontal** one, then lift your finger to start it. A
+  swipe of at least 25 px sets the direction (a faint preview line shows it
+  while your finger is down); a tap without a swipe reuses the previous
+  direction.
+- The wall grows from that cell in two directions until each end hits the
+  border, an existing wall or a captured area.
 - Once a wall completes, every region with **no atoms** in it is captured
-  and filled navy.
-- **Win** the level when the captured area reaches **75%**.
+  and filled blue-gray.
+- **Win** the level when completed walls plus captured area reach **70%** of
+  the playable field.
 - **Lose a life** any time an atom touches a wall that's still being built
   (the whole wall vanishes).
+- **RESTART** (top right, above the field) restarts the current level and
+  refills its lives.
 
 ### Difficulty
 
 - Level **N** spawns **N** atoms (level 1 = 1 atom, level 50 = 50 atoms).
-- Lives per level: **`max(3, N + 2)`** — they refill on retry.
+- Lives per level: **`max(3, N + 2)`**, refilled on retry.
 - 50 levels in v0.1; the game loops back to level 1 after.
 
 ## Run from source (desktop)
@@ -73,9 +79,13 @@ Every push to `main` triggers `.github/workflows/build-android.yml`, which:
 
 For a permanent versioned APK: `git tag v0.1.0 && git push --tags`.
 
+A second workflow, `.github/workflows/gdlint.yml`, runs `gdformat --check` and
+`gdlint` on pushes and pull requests that touch `.gd` files. The format check
+must pass; `gdlint` is advisory for now.
+
 The full debugging history of this workflow lives in `ball-connect`'s
-[`docs/godot-android-ci-notes.md`](https://github.com/Matswm86/ball-connect/blob/main/docs/godot-android-ci-notes.md)
-— same workflow, same gotchas.
+[`docs/godot-android-ci-notes.md`](https://github.com/Matswm86/ball-connect/blob/main/docs/godot-android-ci-notes.md).
+Same workflow, same gotchas.
 
 ## File map
 
@@ -83,8 +93,11 @@ The full debugging history of this workflow lives in `ball-connect`'s
 project.godot                   Engine settings (1080×1920 portrait, GL Compat)
 export_presets.cfg              Android export preset (gradle build, arm64-v8a)
 icon.svg                        App icon
+.pre-commit-config.yaml         Pre-commit hooks: file checks + detect-secrets
+                                (baseline in .secrets.baseline)
 .github/workflows/
   build-android.yml             CI workflow that produces the APK
+  gdlint.yml                    gdformat --check + gdlint on .gd changes
 scenes/
   Game.tscn                     Root scene
 scripts/
@@ -96,20 +109,24 @@ screenshots/
 
 ## Design rules (locked-in defaults)
 
-- Field: **36 cols × 56 rows**, 30 px cells. Viewport: 1080×1920 portrait.
-- Atom radius: 13 px. Atom speed: 240 px/s, ±8% per atom.
-- Wall growth: 6.5 cells/s (slower than atoms, so timing matters).
-- Capture target: **75%** of the playable area.
+- Field: **18 cols × 25 rows** including the border ring (16 × 23 playable),
+  60 px cells. Viewport: 1080×1920 portrait.
+- Atom radius: 22 px. Atom speed: 380 px/s, ±8% per atom.
+- Wall growth: 9 cells/s per end (faster than the atoms).
+- Capture target: **70%** of the playable area.
 - Lives: `max(3, level + 2)`. 50 levels.
-- Palette (locked, sourced from the original 1992 Win3.x build):
+- Palette (the `Color()` constants at the top of `scripts/Game.gd`, rounded to
+  hex):
   | Element | Hex | Notes |
   |---|---|---|
-  | Field + HUD background | `#D3D3D3` | Win3 face gray |
-  | Border | `#A9A9A9` | dark gray |
-  | Wall (completed) | `#B86566` | "fadedRed" |
-  | Wall (under construction) | `#772F32` | darker red on growing tip |
-  | Captured region + progress bar | `#8187DE` | "fadedBlue" |
-  | Atom base | `#B86566` | red |
-  | Atom checker spots | `#FFFFFF` | white 4-pole pattern |
-  | Atom outline | `#662E2E` | dark red |
-  | Text | `#000000` | black ink |
+  | Field | `#CCCCCC` | light gray cells |
+  | Grid lines | `#9E9E9E` | between cells |
+  | Border | `#1A1A1A` | near-black |
+  | HUD + outer background | `#000000` | black |
+  | Wall (completed) | `#8C1A1A` | muted dark red |
+  | Wall (under construction) | `#C72E2E` | brighter red on growing tip |
+  | Captured region + progress bar | `#6B759E` | muted blue-gray |
+  | Atom base | `#A61F1F` | red |
+  | Atom highlight | `#FFFFFF` | small white dot |
+  | Atom outline | `#400000` | dark red |
+  | Text | `#FFFFFF` | white on the black HUD |
