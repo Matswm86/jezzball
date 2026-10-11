@@ -1,22 +1,21 @@
 # JezzBall
 
-Faithful Android remake of the 1992 Microsoft Entertainment Pack 3 classic.
-Cap off 70% of the field by drawing walls while bouncing atoms try to break
-them. **No ads, no IAP, no analytics, no tracking.**
+Faithful Android remake of the 1992 Microsoft Entertainment Pack 3 classic, for
+anyone who wants its wall-building puzzle on a phone. Cap off 70% of the field
+by drawing walls while bouncing atoms try to break them, across 50 levels.
+**No ads, no IAP, no analytics, no tracking.**
 
 <p align="center">
-  <img src="screenshots/inspiration.png" alt="Original JezzBall (Microsoft Entertainment Pack 3, 1992)" width="320"/>
+  <img src="screenshots/screenshot.png" alt="JezzBall on a phone, level 3: a blue-gray captured area, a red wall under construction and three bouncing atoms" width="320"/>
 </p>
 
-The art direction borrows the Windows 3.x look of the 1992 original: a light
-gray field with grid lines, muted dark-red walls, a muted blue-gray capture
-fill, and red atoms with a white highlight, under a black HUD. All graphics are
-drawn procedurally in Godot's `_draw()` (no external assets).
+*Level 3 in the Android app: 39 % of the field captured so far (target 70 %), a
+wall under construction in bright red, and three atoms still bouncing.*
 
-## Install on Android
+## Download
 
 **Direct APK download:**
-https://github.com/Matswm86/jezzball/releases/download/latest/jezzball-fresh.apk
+https://github.com/Matswm86/jezzball/releases/download/v0.5.0/jezzball.apk
 
 1. Open that link in your phone's browser and tap to download.
 2. When you tap the downloaded file, Android may say *"For your security, your
@@ -32,13 +31,23 @@ Permanent versioned downloads are also published to the
 [Releases page](https://github.com/Matswm86/jezzball/releases) when a
 `vX.Y.Z` tag is pushed.
 
+## What it does
+
+- Build walls with a swipe to cut the field into smaller areas.
+- Capture every area that has no atoms in it; fill 70% of the field to clear
+  the level.
+- Play 50 levels: level N has N atoms and `max(3, N + 2)` lives.
+- Restart the current level at any time and get its lives back.
+- Play offline: the export preset requests no Android permissions, not even
+  internet.
+
 ## How to play
 
 - Press a cell in the field and swipe up/down for a **vertical** wall or
   left/right for a **horizontal** one, then lift your finger to start it. A
-  swipe of at least 25 px sets the direction (a faint preview line shows it
-  while your finger is down); a tap without a swipe reuses the previous
-  direction.
+  swipe of at least 25 px sets the direction when you lift (the faint preview
+  line while your finger is down shows the direction currently in effect); a
+  tap without a swipe reuses the previous direction.
 - The wall grows from that cell in two directions until each end hits the
   border, an existing wall or a captured area.
 - Once a wall completes, every region with **no atoms** in it is captured
@@ -54,7 +63,34 @@ Permanent versioned downloads are also published to the
 
 - Level **N** spawns **N** atoms (level 1 = 1 atom, level 50 = 50 atoms).
 - Lives per level: **`max(3, N + 2)`**, refilled on retry.
-- 50 levels in v0.1; the game loops back to level 1 after.
+- 50 levels; the game loops back to level 1 after level 50.
+
+## How it works
+
+JezzBall is a Godot 4.6 project written in GDScript, with a single scene and a
+single script that holds the whole game. The field is a grid of cells: every
+frame the script grows the walls under construction, moves the atoms, checks
+whether an atom has touched a growing wall, and tests whether the filled share
+has reached 70%. When a wall completes, a flood fill finds every empty region
+without an atom in it and captures it. GitHub Actions exports the APK with
+Godot's Android gradle build, for 64-bit and 32-bit ARM devices, on every push
+to `main`.
+
+The art direction borrows the Windows 3.x look of the 1992 original: a light
+gray field with grid lines, muted dark-red walls, a muted blue-gray capture
+fill, and red atoms with a white highlight, under a black HUD. All graphics are
+drawn procedurally in Godot's `_draw()` (no external assets).
+
+<p align="center">
+  <img src="screenshots/inspiration.png" alt="Original JezzBall (Microsoft Entertainment Pack 3, 1992)" width="320"/>
+</p>
+
+*The original 1992 game, the reference for the look.*
+
+## Status
+
+Latest release is v0.5.0 with all 50 levels playable. No sound, menu, saved
+progress or high scores yet; every launch starts at level 1.
 
 ## Run from source (desktop)
 
@@ -91,7 +127,8 @@ Same workflow, same gotchas.
 
 ```
 project.godot                   Engine settings (1080×1920 portrait, GL Compat)
-export_presets.cfg              Android export preset (gradle build, arm64-v8a)
+export_presets.cfg              Android export preset (gradle build,
+                                armeabi-v7a + arm64-v8a)
 icon.svg                        App icon
 .pre-commit-config.yaml         Pre-commit hooks: file checks + detect-secrets
                                 (baseline in .secrets.baseline)
@@ -104,6 +141,7 @@ scripts/
   Game.gd                       Whole game: grid, ball physics, wall builder,
                                 flood-fill capture, HUD, overlays
 screenshots/
+  screenshot.png                In-game capture shown at the top of this README
   inspiration.png               Original JezzBall reference image
 ```
 
